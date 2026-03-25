@@ -14,6 +14,34 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+# 货币对配置
+CURRENCY_PAIRS = {
+    'EUR': {'symbol': 'EURUSD', 'name': '欧元/美元'},
+    'JPY': {'symbol': 'USDJPY', 'name': '美元/日元'},
+    'AUD': {'symbol': 'AUDUSD', 'name': '澳元/美元'},
+    'GBP': {'symbol': 'GBPUSD', 'name': '英镑/美元'},
+    'CAD': {'symbol': 'USDCAD', 'name': '美元/加元'},
+    'NZD': {'symbol': 'NZDUSD', 'name': '新西兰元/美元'}
+}
+
+
+# 信号配置
+SIGNAL_CONFIG = {
+    'buy_threshold': 60,
+    'sell_threshold': 40,
+    'ml_probability_threshold': 0.60
+}
+
+
+# 路径配置
+PATHS = {
+    'data_dir': 'data',
+    'model_dir': 'data/models',
+    'prediction_dir': 'data/predictions',
+    'log_file': 'fx_predict.log'
+}
+
+
 # 模型配置
 MODEL_CONFIG = {
     'horizon': 20,  # 预测周期（天）
@@ -31,19 +59,36 @@ MODEL_CONFIG = {
 }
 
 
-# 技术指标配置
+# 技术指标配置（30-40个指标）
 INDICATOR_CONFIG = {
-    'SMA': {'periods': [5, 10, 20, 50]},
-    'EMA': {'periods': [12, 26]},
-    'RSI': {'period': 14},
+    # 趋势类指标
+    'SMA': {'periods': [5, 10, 20, 50, 120]},
+    'EMA': {'periods': [5, 10, 12, 20, 26]},
     'MACD': {'fast_period': 12, 'slow_period': 26, 'signal_period': 9},
     'ADX': {'period': 14},
+    
+    # 动量类指标
+    'RSI': {'period': 14},
+    'KDJ': {'period': 9, 'm1': 3, 'm2': 3},
+    'WilliamsR': {'period': 14},
+    'CCI': {'period': 20},
+    
+    # 波动类指标
     'ATR': {'period': 14},
     'Bollinger': {'period': 20, 'std_dev': 2},
+    'Std_20d': {'period': 20},
+    'Volatility_20d': {'period': 20},
+    
+    # 成交量类指标
     'OBV': {},
-    'KDJ': {'period': 9, 'm1': 3, 'm2': 3},
-    'CCI': {'period': 20},
-    'WilliamsR': {'period': 14}
+    
+    # 价格形态指标
+    'Price_Percentile': {'period': 120},
+    'Bias_Rates': {'periods': [5, 10, 20]},
+    
+    # 市场环境指标
+    'Trend_Slope': {'period': 20},
+    'MA_Alignment': {}
 }
 
 
@@ -100,6 +145,31 @@ def validate_config():
     if not INDICATOR_CONFIG:
         logger.error("技术指标配置不能为空")
         return False
+
+    # 验证货币对配置
+    if not CURRENCY_PAIRS:
+        logger.error("货币对配置不能为空")
+        return False
+
+    # 验证信号配置
+    if not (0 <= SIGNAL_CONFIG['buy_threshold'] <= 100):
+        logger.error("买入阈值必须在0-100范围内")
+        return False
+
+    if not (0 <= SIGNAL_CONFIG['sell_threshold'] <= 100):
+        logger.error("卖出阈值必须在0-100范围内")
+        return False
+
+    if not (0 < SIGNAL_CONFIG['ml_probability_threshold'] <= 1):
+        logger.error("ML概率阈值必须在(0, 1]范围内")
+        return False
+
+    # 验证路径配置
+    required_paths = ['data_dir', 'model_dir', 'prediction_dir']
+    for path_key in required_paths:
+        if path_key not in PATHS or not PATHS[path_key]:
+            logger.error(f"路径配置缺少必需项: {path_key}")
+            return False
 
     # 验证大模型配置
     if not LLM_CONFIG['api_key']:
