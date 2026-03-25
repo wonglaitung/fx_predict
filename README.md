@@ -97,22 +97,33 @@ cp .env.example .env
 # 编辑 .env 文件，填入 QWEN_API_KEY
 ```
 
-### 训练模型
+### 一键运行完整流程（推荐）
 
 ```bash
-python3 -m ml_services.fx_trading_model --mode train --pair EUR --horizon 20
+# 运行完整流程（训练 + 预测 + 分析）
+./run_full_pipeline.sh
+
+# 跳过训练，只进行预测和分析（模型已存在时）
+./run_full_pipeline.sh --skip-training
+
+# 禁用大模型分析
+./run_full_pipeline.sh --no-llm
+
+# 指定分析长度（short/medium/long）
+./run_full_pipeline.sh --llm-length short
 ```
 
-### 生成预测
+### 单独运行各模块
 
 ```bash
-python3 -m ml_services.fx_trading_model --mode predict --pair EUR
-```
+# 训练单个货币对模型
+python3 -m ml_services.fx_trading_model --mode train --pair EUR
 
-### 综合分析
+# 生成单个货币对预测
+python3 -ml_services.fx_trading_model --mode predict --pair EUR
 
-```bash
-python3 -m comprehensive_analysis --date 2026-03-25
+# 综合分析单个货币对
+python3 -m comprehensive_analysis --pair EUR
 ```
 
 ## 测试
@@ -121,15 +132,21 @@ python3 -m comprehensive_analysis --date 2026-03-25
 # 运行所有测试
 pytest tests/ -v
 
+# 运行特定测试文件
+pytest tests/test_integration.py -v
+
 # 运行测试并检查覆盖率
 pytest tests/ --cov=. --cov-report=html --cov-report=term
 ```
 
-**测试覆盖率**: 85%（88 个测试用例）
+**测试覆盖率**: 85%（103个测试用例）
+- 总测试数：103个
+- 单元测试：94个
+- 集成测试：9个
 
 ## 技术指标（35个）
 
-所有指标均使用滞后数据防止数据泄漏：
+所有指标均使用滞后数据（`.shift(1)`）防止数据泄漏：
 
 ### 趋势类（11个）
 - SMA/EMA（5/10/12/20/26/50/120日）
@@ -150,6 +167,10 @@ pytest tests/ --cov=. --cov-report=html --cov-report=term
 
 ### 市场环境类（2个）
 - MA_Alignment
+
+### 交叉特征（2个）
+- SMA5_cross_SMA20：均线交叉信号（金叉/死叉）
+- Price_vs_Bollinger：价格在布林带中的位置
 
 ## 数据流设计
 
@@ -206,22 +227,29 @@ pytest tests/ --cov=. --cov-report=html --cov-report=term
 
 ```
 fx_predict/
+├── run_full_pipeline.sh          # 一体化脚本（推荐）
 ├── data/                           # 数据目录
-│   ├── models/                    # 训练好的模型
+│   ├── models/                    # 训练好的模型（CatBoost）
 │   └── predictions/               # 预测结果
 ├── data_services/                 # 数据服务层
 │   ├── excel_loader.py           # Excel 数据加载器
-│   └── technical_analysis.py     # 技术指标引擎
+│   └── technical_analysis.py     # 技术指标引擎（35个指标）
 ├── ml_services/                   # 机器学习服务层
 │   ├── fx_trading_model.py       # CatBoost 模型
-│   ├── feature_engineering.py    # 特征工程
+│   ├── feature_engineering.py    # 特征工程（18个特征）
 │   └── base_model_processor.py   # 模型处理器
 ├── llm_services/                  # 大模型服务层
-│   └── qwen_engine.py            # 通义千问 API
-├── comprehensive_analysis.py      # 人机协作整合层
+│   └── qwen_engine.py            # 通义千问 API 封装
+├── comprehensive_analysis.py      # 人机协作整合层（双重验证）
 ├── config.py                      # 配置文件
 ├── requirements.txt               # 依赖列表
-└── tests/                         # 测试文件（88 个测试用例）
+└── tests/                         # 测试文件（103个测试用例）
+    ├── test_integration.py       # 集成测试
+    ├── test_comprehensive_analysis.py
+    ├── test_excel_loader.py
+    ├── test_feature_engineering.py
+    ├── test_fx_trading_model.py
+    └── test_technical_analysis.py
 ```
 
 ## 风险控制
