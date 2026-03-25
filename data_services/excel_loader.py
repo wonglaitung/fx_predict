@@ -5,20 +5,20 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 
-class ExcelDataLoader:
-    """Excel 数据加载器"""
+class FXDataLoader:
+    """外汇数据加载器"""
 
     def __init__(self):
         """初始化加载器"""
         self.logger = logger
 
-    def load_single_pair(self, file_path: str, pair: str) -> pd.DataFrame:
+    def load_pair(self, pair: str, file_path: str) -> pd.DataFrame:
         """
         加载单个货币对数据
 
         Args:
-            file_path: Excel 文件路径
             pair: 货币对代码，对应 Excel 工作表名称（如 'EUR', 'JPY', 'AUD' 等）
+            file_path: Excel 文件路径
 
         Returns:
             DataFrame，包含 Date、Close、SMA5、SMA10、SMA20 等列
@@ -42,6 +42,10 @@ class ExcelDataLoader:
 
             # 预处理数据
             df = self._preprocess(df)
+
+            # 验证数据格式
+            if not self._validate_data_format(df):
+                raise ValueError("数据格式验证失败")
 
             self.logger.info(f"成功加载货币对 {pair}，共 {len(df)} 条记录")
             return df
@@ -69,7 +73,7 @@ class ExcelDataLoader:
 
         for sheet_name in xls.sheet_names:
             try:
-                df = self.load_single_pair(file_path, sheet_name)
+                df = self.load_pair(sheet_name, file_path)
                 all_pairs[sheet_name] = df
                 self.logger.info(f"已加载货币对: {sheet_name}")
             except Exception as e:
