@@ -1,0 +1,28 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# IDE
+.vscode/
+.idea/
+
+# Coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
+# CatBoost training info
+catboost_info/
+
+# API Keys and sensitive files
+set_key.sh
+.env
+*.pem
+*.key
+
+# OS
+.DS_Store
+Thumbs.db
