@@ -4,6 +4,9 @@ from typing import Dict, Any
 
 from data_services.technical_analysis import TechnicalAnalyzer
 from ml_services.fx_trading_model import FXTradingModel
+import json
+import time
+from llm_services.qwen_engine import chat_with_llm
 
 import logging
 
@@ -17,6 +20,35 @@ class ComprehensiveAnalyzer:
         self.logger = logger
         self.technical_analyzer = TechnicalAnalyzer()
         self.model = FXTradingModel()
+
+    def generate_llm_analysis(self,
+                             pair: str,
+                             data: pd.DataFrame,
+                             ml_prediction: Dict[str, Any],
+                             length: str = 'long') -> Dict[str, Any]:
+        """
+        调用大模型进行双重验证分析
+
+        Args:
+            pair: 货币对代码
+            data: 包含技术指标的数据
+            ml_prediction: ML 预测结果
+            length: 分析长度 ('short' | 'medium' | 'long')
+
+        Returns:
+            {
+                'recommendation': 'buy/sell/hold',
+                'confidence': 'high/medium/low',
+                'llm_report': str,
+                'key_factors': List[str]
+            }
+
+        Raises:
+            ValueError: API 密钥未配置或输出格式错误
+            requests.exceptions.RequestException: API 调用失败
+        """
+        # 暂时返回空字典，稍后实现
+        return {}
 
     def analyze_pair(self, pair: str, data: pd.DataFrame,
                     ml_prediction: Dict[str, Any]) -> Dict[str, Any]:
