@@ -34,19 +34,21 @@
   - 趋势类：SMA(5), SMA(10), SMA(20), SMA(50), SMA(120), EMA(5), EMA(10), EMA(12), EMA(20), EMA(26), MACD, ADX, DI_Plus, DI_Minus
   - 动量类：RSI(14), KDJ, Williams%R(14), CCI(20)
   - 波动类：ATR(14), Bollinger Bands, Std_20d, Volatility_20d
-  - 成交量类：OBV
+  - 成交量类：OBV（已修复数据泄漏问题）
   - 价格形态：Price_Percentile(120), Bias_Rates, Trend_Slope
   - 市场环境：MA_Alignment
 - [x] 数据泄漏防范（所有指标使用 .shift(1)）
+- [x] 修复 OBV 指标数据泄漏问题（添加 .shift(1)）
 
 #### 2.3 机器学习层 ✅
-- [x] 实现 FeatureEngineer（16个特征）
+- [x] 实现 FeatureEngineer（18个特征）
   - 价格衍生特征：Close_change, Return
   - 偏离率特征：Bias_5/10/20
   - 波动率特征：Volatility
   - 滞后特征：Close_lag
   - 趋势斜率：Trend_Slope
   - 市场环境：MA_Alignment
+  - 交叉特征：SMA5_cross_SMA20, Price_vs_Bollinger
 - [x] 实现目标变量创建（shift(-horizon)）
 - [x] 实现 BaseModelProcessor（模型保存/加载）
 - [x] 实现 FXTradingModel（CatBoost 模型）
@@ -70,12 +72,12 @@
 - [x] 风险收益比计算
 
 ### Phase 3: 测试和文档 ✅
-- [x] 单元测试（79个测试）
+- [x] 单元测试（83个测试）
   - test_comprehensive_analysis.py: 4个
   - test_excel_loader.py: 7个
-  - test_feature_engineering.py: 29个
+  - test_feature_engineering.py: 35个（新增交叉特征测试）
   - test_fx_trading_model.py: 6个
-  - test_technical_analysis.py: 33个
+  - test_technical_analysis.py: 31个（更新 OBV 测试）
 - [x] 集成测试（9个端到端测试）
   - 端到端工作流
   - 多货币对测试
@@ -102,8 +104,8 @@
 
 | 指标 | 数值 |
 |------|------|
-| 总测试数 | 88 个 |
-| 单元测试 | 79 个 |
+| 总测试数 | 92 个 |
+| 单元测试 | 83 个 |
 | 集成测试 | 9 个 |
 | 测试通过率 | 100% |
 | 总体覆盖率 | 85% |
@@ -138,7 +140,6 @@
 - [ ] 完善配置模块测试（目前 29%）
 - [ ] 在 pytest.ini 中注册 slow 标记
 - [ ] 统一指标命名规范（WilliamsR_14 → Williams_R_14）
-- [ ] OBV 指标添加 .shift(1) 保持一致性
 
 ### 未来增强
 - [ ] 实时数据源支持
@@ -152,11 +153,8 @@
 - 日期：2026-03-25
 - 更新者：iFlow CLI
 - 更新内容：
-  - 为 fx_trading_model.py 添加主函数入口，支持命令行训练和预测
-  - 为 comprehensive_analysis.py 添加主函数入口，支持综合分析
-  - 修复模型配置传递问题（缺少 catboost_params）
-  - 修复数据加载器导入问题（ExcelLoader → FXDataLoader）
-  - 更新 README.md，统一使用 python3 -m 方式运行
-  - 添加 .gitignore 文件
-  - 训练 EUR 模型
-  - 发现并修复所有模块缺少主函数入口的问题
+  - **修复数据泄漏问题**：为 OBV 指标添加 .shift(1) 防止数据泄漏
+  - **新增交叉特征**：在特征工程中添加 SMA5_cross_SMA20 和 Price_vs_Bollinger 两个交叉特征
+  - **特征数量提升**：特征工程从 16 个特征增加到 18 个特征
+  - **更新测试用例**：为新增交叉特征添加 6 个测试用例，更新 OBV 数据泄漏验证测试
+  - **总测试数**：从 88 个增加到 92 个

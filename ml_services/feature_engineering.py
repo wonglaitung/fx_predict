@@ -35,6 +35,7 @@ class FeatureEngineer:
         4. 滞后特征：Close_lag_1, Close_lag_5, Close_lag_20
         5. 趋势斜率特征：Trend_Slope_20
         6. 市场环境特征：MA_Alignment
+        7. 交叉特征：SMA5_cross_SMA20（均线交叉信号）, Price_vs_Bollinger（价格与布林带位置）
 
         Args:
             df: 包含技术指标的数据（至少需要 Close 列）
@@ -93,6 +94,16 @@ class FeatureEngineer:
         # 均线排列：多头/空头排列强度
         if all(col in features.columns for col in ['SMA5', 'SMA10', 'SMA20', 'SMA50']):
             features['MA_Alignment'] = self._compute_ma_alignment(features).shift(1)
+
+        # ==================== 7. 交叉特征 ====================
+
+        # SMA5与SMA20交叉信号（金叉/死叉）
+        if all(col in features.columns for col in ['SMA5', 'SMA20']):
+            features['SMA5_cross_SMA20'] = self._compute_sma_cross_signal(features).shift(1)
+
+        # 价格相对于布林带的位置
+        if all(col in features.columns for col in ['Close', 'BB_Upper', 'BB_Middle', 'BB_Lower']):
+            features['Price_vs_Bollinger'] = self._compute_bollinger_position(features).shift(1)
 
         self.logger.info(f"特征创建完成，原始列数: {len(df.columns)}, 特征列数: {len(features.columns)}")
 
@@ -270,6 +281,62 @@ class FeatureEngineer:
         alignment = bullish_score - bearish_score
 
         return alignment
+
+    def _compute_sma_cross_signal(self, df: pd.DataFrame) -> pd.Series:
+        """
+        计算 SMA5 与 SMA20 的交叉信号
+
+        金叉（买入信号）：SMA5 上穿 SMA20
+        死叉（卖出信号）：SMA5 下穿 SMA20
+
+        Returns:
+            交叉信号序列（1=金叉，-1=死叉，0=无交叉）
+        """
+        sma5 = df['SMA5']
+        sma20 = df['SMA20']
+
+        # 计算交叉信号
+        # 使用 diff() 检测变化，然后判断是否交叉
+        cross_signal = pd.Series(0, index=df.index)
+
+        # 检测金叉（SMA5 从下方穿过 SMA20）
+        golden_cross = (sma5 > sma20) & (sma5.shift(1) <= sma20.shift(1))
+
+        # 检测死叉（SMA5 从上方穿过 SMA20）
+        death_cross = (sma5 < sma20) & (sma5.shift(1) >= sma20.shift(1))
+
+        cross_signal[golden_cross] = 1
+        cross_signal[death_cross] = -1
+
+        return cross_signal
+
+    def _compute_bollinger_position(self, df: pd.DataFrame) -> pd.Series:
+        """
+        计算价格相对于布林带的位置
+
+        返回值范围：
+        - > 1：价格在上轨之上（超买）
+        - 0.5 - 1：价格在中轨和上轨之间
+        - -0.5 - 0.5：价格在中轨附近
+        - -1 - -0.5：价格在下轨和中轨之间
+        - < -1：价格在下轨之下（超卖）
+
+        Returns:
+            价格位置序列（标准化值）
+        """
+        close = df['Close']
+        bb_upper = df['BB_Upper']
+        bb_lower = df['BB_Lower']
+        bb_middle = df['BB_Middle']
+
+        # 计算布林带宽度
+        bb_width = bb_upper - bb_lower
+
+        # 计算价格位置（标准化到 -1 到 1 之间）
+        # 位置 = (价格 - 中轨) / (上轨 - 下轨) * 2
+        position = (close - bb_middle) / bb_width * 2
+
+        return position
 
 
 # ==================== 辅助函数 ====================

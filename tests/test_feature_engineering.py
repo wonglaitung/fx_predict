@@ -288,6 +288,63 @@ class TestMarketEnvironmentFeature:
             assert (valid_ma <= 3).all()
 
 
+# ==================== 交叉特征测试 ====================
+
+class TestCrossFeatures:
+    """交叉特征测试"""
+
+    def test_sma5_cross_sma20_feature_exists(self, engineer, sample_data_with_indicators):
+        """测试 SMA5_cross_SMA20 特征是否存在"""
+        features = engineer.create_features(sample_data_with_indicators)
+
+        assert 'SMA5_cross_SMA20' in features.columns, "应该包含 SMA5_cross_SMA20 特征"
+
+    def test_sma5_cross_sma20_values(self, engineer, sample_data_with_indicators):
+        """测试 SMA5_cross_SMA20 特征值"""
+        features = engineer.create_features(sample_data_with_indicators)
+
+        if 'SMA5_cross_SMA20' in features.columns:
+            # 交叉信号应该只包含 -1, 0, 1
+            valid_cross = features['SMA5_cross_SMA20'].dropna()
+            assert not valid_cross.empty
+            assert valid_cross.isin([-1, 0, 1]).all(), "交叉信号应该是 -1, 0, 或 1"
+
+    def test_sma5_cross_sma20_data_leakage(self, engineer, sample_data_with_indicators):
+        """测试 SMA5_cross_SMA20 特征的数据泄漏防范"""
+        features = engineer.create_features(sample_data_with_indicators)
+
+        if 'SMA5_cross_SMA20' in features.columns:
+            # 第一行应该是 NaN（使用 shift(1)）
+            assert pd.isna(features['SMA5_cross_SMA20'].iloc[0]), \
+                "SMA5_cross_SMA20 第一行应该是 NaN（防止数据泄漏）"
+
+    def test_price_vs_bollinger_feature_exists(self, engineer, sample_data_with_indicators):
+        """测试 Price_vs_Bollinger 特征是否存在"""
+        features = engineer.create_features(sample_data_with_indicators)
+
+        assert 'Price_vs_Bollinger' in features.columns, "应该包含 Price_vs_Bollinger 特征"
+
+    def test_price_vs_bollinger_values(self, engineer, sample_data_with_indicators):
+        """测试 Price_vs_Bollinger 特征值"""
+        features = engineer.create_features(sample_data_with_indicators)
+
+        if 'Price_vs_Bollinger' in features.columns:
+            # 价格位置应该在合理范围内（通常在 -2 到 2 之间）
+            valid_position = features['Price_vs_Bollinger'].dropna()
+            assert not valid_position.empty
+            # 价格位置可能超出范围，但大部分应该在合理范围内
+            assert (valid_position.abs() < 10).all(), "价格位置应该在合理范围内"
+
+    def test_price_vs_bollinger_data_leakage(self, engineer, sample_data_with_indicators):
+        """测试 Price_vs_Bollinger 特征的数据泄漏防范"""
+        features = engineer.create_features(sample_data_with_indicators)
+
+        if 'Price_vs_Bollinger' in features.columns:
+            # 第一行应该是 NaN（使用 shift(1)）
+            assert pd.isna(features['Price_vs_Bollinger'].iloc[0]), \
+                "Price_vs_Bollinger 第一行应该是 NaN（防止数据泄漏）"
+
+
 # ==================== 数据泄漏防范测试 ====================
 
 class TestDataLeakagePrevention:

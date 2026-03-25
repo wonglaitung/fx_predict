@@ -289,6 +289,9 @@ class TestVolumeIndicators:
         valid_obv = result['OBV'].dropna()
         assert not valid_obv.empty
 
+        # 数据泄漏防范：第一行应该是 NaN（使用 shift(1)）
+        assert pd.isna(result['OBV'].iloc[0]), "OBV 第一行应该是 NaN（防止数据泄漏）"
+
 
 # ==================== 价格形态指标测试 ====================
 

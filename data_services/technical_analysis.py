@@ -451,7 +451,7 @@ class TechnicalAnalyzer:
             df: 数据框（需包含 Close, Volume）
 
         Returns:
-            OBV序列
+            OBV序列（使用shift(1)防止数据泄漏）
         """
         # 计算价格变化
         price_change = df['Close'].diff()
@@ -468,7 +468,8 @@ class TechnicalAnalyzer:
             else:
                 obv.iloc[i] = obv.iloc[i-1]
 
-        return obv
+        # 使用shift(1)防止数据泄漏
+        return obv.shift(1)
 
     # ==================== 价格形态指标实现 ====================
 
