@@ -114,7 +114,41 @@ if ml_probability <= 0.50:
 
 **结果**：创建 16 个特征，分为 6 类
 
-### 10. Git 工作流
+### 10. Python 模块的主函数入口
+
+**问题**：使用了相对导入（`from ml_services.xxx import`）的 Python 模块需要添加 `if __name__ == "__main__":` 主函数入口才能直接运行。
+
+**解决方案**：
+1. 为需要命令行运行的模块添加主函数入口
+2. 使用 `python3 -m module_name` 方式运行，而不是 `python3 module_name.py`
+3. 在主函数中使用 `argparse` 解析命令行参数
+
+**代码示例**：
+```python
+if __name__ == "__main__":
+    import argparse
+    from data_services.excel_loader import FXDataLoader
+
+    parser = argparse.ArgumentParser(description="外汇交易模型")
+    parser.add_argument('--mode', type=str, required=True, choices=['train', 'predict'])
+    parser.add_argument('--pair', type=str, required=True)
+    args = parser.parse_args()
+
+    # 处理逻辑...
+```
+
+**运行方式**：
+```bash
+# 错误方式（会因为相对导入失败）
+python3 ml_services/fx_trading_model.py --mode train
+
+# 正确方式
+python3 -m ml_services.fx_trading_model --mode train --pair EUR
+```
+
+**教训**：在设计项目结构时，如果计划提供命令行接口，应该从一开始就规划好主函数入口和运行方式。
+
+### 11. Git 工作流
 
 **经验**：频繁提交和小步提交有助于代码管理。
 
@@ -268,4 +302,8 @@ handler = RotatingFileHandler('fx_predict.log', maxBytes=10*1024*1024, backupCou
 
 - 日期：2026-03-25
 - 作者：iFlow CLI
-- 版本：1.0 (MVP)
+- 版本：1.1 (MVP + 命令行支持)
+- 更新内容：
+  - 添加 Python 模块主函数入口的经验教训
+  - 记录相对导入和命令行运行的问题及解决方案
+  - 强调项目结构设计时应提前规划命令行接口

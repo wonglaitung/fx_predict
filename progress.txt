@@ -151,4 +151,12 @@
 
 - 日期：2026-03-25
 - 更新者：iFlow CLI
-- 更新内容：完成 MVP 并推送到 GitHub
+- 更新内容：
+  - 为 fx_trading_model.py 添加主函数入口，支持命令行训练和预测
+  - 为 comprehensive_analysis.py 添加主函数入口，支持综合分析
+  - 修复模型配置传递问题（缺少 catboost_params）
+  - 修复数据加载器导入问题（ExcelLoader → FXDataLoader）
+  - 更新 README.md，统一使用 python3 -m 方式运行
+  - 添加 .gitignore 文件
+  - 训练 EUR 模型
+  - 发现并修复所有模块缺少主函数入口的问题
