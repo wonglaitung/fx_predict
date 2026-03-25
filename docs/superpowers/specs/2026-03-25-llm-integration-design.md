@@ -62,7 +62,8 @@ def analyze_pair(self, pair: str, data: pd.DataFrame,
 
 def analyze_with_llm(self, pair: str, data: pd.DataFrame,
                      ml_prediction: dict,
-                     technical_signal: dict) -> str:
+                     technical_signal: dict,
+                     validated_signal: dict = None) -> str:
     """
     单独调用大模型生成分析报告
     
@@ -71,6 +72,7 @@ def analyze_with_llm(self, pair: str, data: pd.DataFrame,
         data: 汇率数据
         ml_prediction: ML 预测结果
         technical_signal: 技术信号
+        validated_signal: 验证后的信号（可选，如未提供则内部生成）
     
     Returns:
         大模型分析报告文本
@@ -78,7 +80,12 @@ def analyze_with_llm(self, pair: str, data: pd.DataFrame,
     Raises:
         Exception: 大模型调用失败时抛出异常
     """
-    pass
+    # 如果未提供 validated_signal，则内部生成
+    if validated_signal is None:
+        validated_signal = self._validate_signals(technical_signal, ml_prediction)
+    
+    return self._generate_llm_analysis(pair, data, ml_prediction, 
+                                      technical_signal, validated_signal)
 
 def _generate_llm_analysis(self, pair: str, data: pd.DataFrame,
                           ml_prediction: dict,
@@ -151,6 +158,10 @@ analyze_with_llm()
 ### 4.2 Prompt 模板
 
 ```python
+# 计算目标日期
+from datetime import timedelta
+target_date = data['Date'].iloc[-1] + timedelta(days=horizon)
+
 prompt = f"""
 请分析 {pair} 货币对的交易机会：
 
@@ -168,6 +179,10 @@ prompt = f"""
 - 预测方向：{'上涨' if prediction == 1 else '下跌'}
 - 上涨概率：{probability:.2%}
 - 模型置信度：{confidence}
+
+**一致性检查：**
+- 技术信号和 ML 预测是否一致：{'是' if consistency else '否'}
+- 如不一致，请分析可能的原因
 
 **交易建议：**
 - 建议操作：{recommendation.upper()}
@@ -195,9 +210,30 @@ prompt = f"""
 | 异常 | 原因 | 处理方式 |
 |------|------|---------|
 | `ValueError` | API 密钥未配置 | 抛出异常，提示用户配置 QWEN_API_KEY |
-| `requests.exceptions.Timeout` | API 调用超时 | 记录日志，抛出异常 |
-| `requests.exceptions.HTTPError` | HTTP 错误（4xx/5xx） | 记录日志，抛出异常 |
-| `Exception` | 其他未知错误 | 记录日志，抛出异常 |
+| `requests.exceptions.Timeout` | API 调用超时 | 记录警告，返回降级结果 |
+| `requests.exceptions.HTTPError` | HTTP 错误（4xx/5xx） | 记录警告，返回降级结果 |
+| `Exception` | 其他未知错误 | 记录警告，返回降级结果 |
+
+### 5.2 降级策略
+
+当大模型调用失败时，不抛出异常，而是：
+
+```python
+# 在 analyze_pair() 中
+try:
+    llm_analysis = self._generate_llm_analysis(...)
+except Exception as e:
+    logger.warning(f"大模型分析失败: {pair} - {e}")
+    llm_analysis = None  # 或返回错误信息字符串
+
+# 在返回值中
+{
+    ...
+    'llm_analysis': llm_analysis  # 可能是分析报告、None 或错误信息
+}
+```
+
+### 5.3 日志记录
 
 ### 5.2 日志记录
 
@@ -219,28 +255,36 @@ logger.error(f"大模型分析失败: {pair} - {error}")
 
 ### 6.1 配置项
 
-在 `config.py` 中添加：
+扩展现有的 `LLM_CONFIG`，添加集成相关配置：
 
 ```python
-# 大模型集成配置
-LLM_INTEGRATION_CONFIG = {
-    'enabled': True,          # 默认启用大模型
-    'timeout': 300,          # API 调用超时时间（秒）
-    'enable_thinking': True,  # 启用推理模式
+# 大模型配置（扩展）
+LLM_CONFIG = {
+    'api_key': os.getenv('QWEN_API_KEY', ''),
+    'chat_url': os.getenv('QWEN_CHAT_URL',
+                         'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions'),
+    'chat_model': os.getenv('QWEN_CHAT_MODEL', 'qwen-plus-2025-12-01'),
+    'max_tokens': int(os.getenv('MAX_TOKENS', 32768)),
+    'enable_thinking': True,
+    
+    # 新增：集成配置
+    'integration_enabled': True,  # 默认启用大模型集成
+    'timeout': 300,              # API 调用超时时间（秒）
 }
 ```
 
-### 6.2 环境变量
-
-依赖现有的 `LLM_CONFIG`：
+### 6.2 使用配置
 
 ```python
-LLM_CONFIG = {
-    'api_key': os.getenv('QWEN_API_KEY', ''),
-    'chat_url': os.getenv('QWEN_CHAT_URL', ...),
-    'chat_model': os.getenv('QWEN_CHAT_MODEL', ...),
-    'max_tokens': int(os.getenv('MAX_TOKENS', 32768)),
-}
+from config import LLM_CONFIG
+
+def analyze_pair(self, pair: str, data: pd.DataFrame,
+                ml_prediction: dict,
+                enable_llm: bool = LLM_CONFIG['integration_enabled']) -> dict:
+    """
+    如果未指定 enable_llm，使用配置文件的默认值
+    """
+    ...
 ```
 
 ---
@@ -291,25 +335,46 @@ str  # 大模型分析报告文本
 def test_analyze_pair_with_llm_enabled():
     """测试启用大模型的分析"""
     # Mock 大模型调用
-    # 验证 llm_analysis 字段存在
+    # 验证 llm_analysis 字段存在且非空
 
 def test_analyze_pair_with_llm_disabled():
     """测试禁用大模型的分析"""
-    # 验证 llm_analysis 字段不存在
+    # 验证 llm_analysis 字段不存在或为 None
 
 def test_analyze_with_llm():
     """测试独立调用大模型"""
     # Mock 大模型调用
-    # 验证返回值
+    # 验证返回值格式正确
+
+def test_analyze_with_llm_without_validated_signal():
+    """测试独立调用时未提供 validated_signal"""
+    # 验证内部生成 validated_signal
 
 def test_llm_context_building():
     """测试上下文构建逻辑"""
-    # 验证传递给大模型的上下文格式
+    # 验证传递给大模型的上下文格式和内容
 
-def test_llm_error_handling():
-    """测试大模型错误处理"""
+def test_llm_error_handling_with_degradation():
+    """测试大模型错误处理（降级策略）"""
     # Mock API 调用失败
-    # 验证异常抛出
+    # 验证不抛出异常，而是返回 None 或错误信息
+
+def test_llm_api_key_not_configured():
+    """测试 API 密钥未配置时的行为"""
+    # 验证抛出 ValueError
+
+def test_llm_empty_response():
+    """测试大模型返回空内容的处理"""
+    # Mock 返回空字符串
+    # 验证处理逻辑
+
+def test_llm_context_with_missing_indicators():
+    """测试上下文构建时缺少某些指标"""
+    # 验证处理逻辑（使用默认值或跳过该指标）
+
+def test_enable_llm_with_insufficient_data():
+    """测试启用大模型但数据不足时的行为"""
+    # 验证处理逻辑
 ```
 
 ### 8.2 集成测试
@@ -384,7 +449,59 @@ print(llm_report)
 
 ---
 
-## 10. 实施步骤
+## 10. 性能考虑
+
+### 10.1 性能影响
+
+| 操作 | 预计耗时 | 说明 |
+|------|---------|------|
+| 技术信号生成 | < 0.1 秒 | 本地计算 |
+| ML 预测 | < 0.5 秒 | 本地模型 |
+| 大模型分析 | 10-30 秒 | API 调用 |
+| **总计（启用 LLM）** | **10-31 秒** | |
+| **总计（禁用 LLM）** | **< 1 秒** | |
+
+### 10.2 优化建议
+
+- 当前设计为同步调用，适合单次分析场景
+- 如果需要批量分析多个货币对，可以考虑：
+  - 并行调用大模型（使用多线程/多进程）
+  - 异步调用（使用 asyncio）
+  - 缓存分析结果（相同参数无需重复调用）
+
+---
+
+## 11. 日志记录
+
+### 11.1 日志记录点
+
+```python
+def analyze_pair(self, pair: str, data: pd.DataFrame, ...):
+    logger.info(f"开始分析 {pair}，大模型启用: {enable_llm}")
+    
+    # ... 技术信号生成 ...
+    
+    # ... ML 预测整合 ...
+    
+    # ... 信号协同验证 ...
+    
+    if enable_llm:
+        logger.info(f"准备调用大模型: {pair}")
+        try:
+            llm_analysis = self._generate_llm_analysis(...)
+            logger.info(f"大模型分析成功: {pair}")
+        except Exception as e:
+            logger.warning(f"大模型分析失败: {pair} - {e}")
+            llm_analysis = None
+    
+    # ... 综合建议生成 ...
+    
+    logger.info(f"分析完成: {pair}，是否包含 LLM 分析: {llm_analysis is not None}")
+```
+
+---
+
+## 12. 实施步骤
 
 ### Step 1: 扩展 ComprehensiveAnalyzer
 
@@ -423,7 +540,7 @@ print(llm_report)
 
 ---
 
-## 11. 成功标准
+## 13. 成功标准
 
 - [ ] `analyze_pair()` 支持 `enable_llm` 参数
 - [ ] `analyze_with_llm()` 独立方法正常工作
