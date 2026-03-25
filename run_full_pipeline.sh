@@ -97,8 +97,7 @@ train_all_pairs() {
         
         if python3 ml_services/fx_trading_model.py \
             --mode train \
-            --pair "$pair" \
-            --horizon "$HORIZON"; then
+            --pair "$pair"; then
             print_success "${pair} 模型训练完成"
         else
             print_error "${pair} 模型训练失败"
@@ -128,8 +127,7 @@ predict_all_pairs() {
         
         if python3 ml_services/fx_trading_model.py \
             --mode predict \
-            --pair "$pair" \
-            --horizon "$HORIZON"; then
+            --pair "$pair"; then
             print_success "${pair} 预测完成"
         else
             print_error "${pair} 预测失败"
