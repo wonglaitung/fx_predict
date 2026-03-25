@@ -1,564 +1,576 @@
-# 大模型集成设计文档
+# 大模型集成设计 - 双重验证分析系统
 
 **日期**: 2026-03-25
 **版本**: 1.0
-**状态**: 设计中
+**状态**: 设计完成
 
 ---
 
-## 1. 概述
+## 1. 功能概述
 
-### 1.1 目标
+在现有 FX Predict 系统中补充缺失的大模型分析功能，构建完整的人机协作分析系统。大模型作为核心决策者，接收完整的技术指标数据和 ML 预测结果，生成自然语言格式的完整市场分析报告和交易建议。
 
-在现有的综合分析系统中集成大模型（通义千问），为外汇交易建议提供深度分析和解释。
-
-### 1.2 范围
-
-- 在 `ComprehensiveAnalyzer` 类中添加大模型集成功能
-- 支持自动集成和显式调用两种方式
-- 生成包含市场环境、建议理由、风险提示的分析报告
-
-### 1.3 约束
-
-- 大模型调用失败时抛出异常
-- 仅传递关键指标摘要作为上下文
-- 返回结果中添加 `llm_analysis` 字段
+**核心流程：**
+```
+技术指标数据 (35个) → LLM 定性分析
+                    ↓
+ML 预测结果 → LLM 双重验证 → 生成综合建议 + 完整分析报告
+                    ↓
+              自然语言输出
+```
 
 ---
 
-## 2. 架构设计
+## 2. 设计背景
 
-### 2.1 组件结构
+### 2.1 问题发现
 
-```
-ComprehensiveAnalyzer
-├── analyze_pair()               # 现有方法（扩展）
-├── analyze_with_llm()           # 新增：显式调用大模型
-└── _generate_llm_analysis()     # 新增：私有方法
-```
+虽然项目已经实现了：
+- ✅ 大模型 API 封装（`qwen_engine.py`）
+- ✅ 技术指标引擎（35 个指标）
+- ✅ CatBoost 预测模型
+- ✅ 综合分析器基础功能
 
-### 2.2 方法签名
+**但是**，在 `comprehensive_analysis.py` 中并没有真正调用大模型进行分析。根据 MVP 设计文档，`ComprehensiveAnalyzer` 类应该包含 `generate_llm_analysis` 方法，但当前实现中缺失了这一功能。
+
+### 2.2 设计目标
+
+1. **补全 MVP 缺失功能**：实现设计文档中要求的 LLM 分析功能
+2. **双重验证机制**：大模型定性分析 + ML 定量预测，相互印证
+3. **人机协作**：大模型作为最终决策者，综合所有信息给出建议
+4. **灵活可控**：通过命令行参数控制 LLM 行为（启用/禁用、输出长度）
+
+---
+
+## 3. 核心组件设计
+
+### 3.1 新增方法：generate_llm_analysis
+
+在 `ComprehensiveAnalyzer` 类中新增此方法：
 
 ```python
-def analyze_pair(self, pair: str, data: pd.DataFrame,
-                ml_prediction: dict,
-                enable_llm: bool = True) -> dict:
+def generate_llm_analysis(self,
+                         pair: str,
+                         data: pd.DataFrame,
+                         ml_prediction: Dict[str, Any],
+                         length: str = 'long') -> Dict[str, Any]:
+    """
+    调用大模型进行双重验证分析
+
+    步骤：
+    1. 提取所有技术指标的当前值
+    2. 构建 prompt，包含：
+       - 货币对信息
+       - 完整技术指标数据（35个）
+       - ML 预测结果（方向、概率、置信度）
+       - 当前价格
+    3. 调用 LLM 生成分析
+    4. 解析 LLM 输出，提取：
+       - 建议方向
+       - 置信度
+       - 完整分析报告（自然语言）
+       - 关键因素
+
+    Args:
+        pair: 货币对代码
+        data: 包含所有技术指标的数据
+        ml_prediction: ML 预测结果
+        length: 分析长度 ('short' | 'medium' | 'long')
+
+    Returns:
+        {
+            'recommendation': 'buy/sell/hold',
+            'confidence': 'high/medium/low',
+            'llm_report': str,  # 完整分析报告
+            'key_factors': List[str]
+        }
+
+    Raises:
+        ValueError: API 密钥未配置
+        requests.exceptions.RequestException: API 调用失败
+    """
+```
+
+**实现要点：**
+
+1. **提取技术指标**：从 `data` 中提取所有 35 个技术指标的最新值
+2. **构建 Prompt**：根据 `length` 参数选择对应的 prompt 模板（详见第 4 节）
+3. **调用 LLM**：使用 `qwen_engine.chat_with_llm` 发送请求
+4. **解析输出**：从 LLM 返回的自然语言中提取结构化信息
+5. **错误处理**：如果 API 调用失败，抛出异常（根据用户要求 B）
+
+### 3.2 修改方法：analyze_pair
+
+修改现有方法的签名和实现：
+
+```python
+def analyze_pair(self,
+                pair: str,
+                data: pd.DataFrame,
+                ml_prediction: Dict[str, Any],
+                use_llm: bool = True,
+                llm_length: str = 'long') -> Dict[str, Any]:
     """
     分析单个货币对
-    
+
     Args:
         pair: 货币对代码
-        data: 汇率数据
+        data: 汇率数据（包含技术指标）
         ml_prediction: ML 预测结果
-        enable_llm: 是否启用大模型分析（默认 True）
-    
+        use_llm: 是否使用大模型分析（默认 True）
+        llm_length: LLM 分析长度（默认 'long'）
+
     Returns:
-        综合分析结果字典（包含 llm_analysis 字段，如果 enable_llm=True）
-    
+        {
+            'pair': str,
+            'current_price': float,
+            'ml_prediction': int,  # 0/1
+            'ml_probability': float,
+            'ml_confidence': str,
+            'llm_recommendation': str,  # buy/sell/hold
+            'llm_confidence': str,
+            'llm_report': str,  # 完整分析报告
+            'consistency': bool,  # LLM 建议 vs ML 预测
+            'final_recommendation': str,  # 优先使用 LLM 建议
+            'entry_price': float,
+            'stop_loss': float,
+            'take_profit': float,
+            'risk_reward_ratio': float,
+            'analysis_date': str
+        }
+
     Raises:
-        Exception: 当 enable_llm=True 且大模型调用失败时抛出异常
+        ValueError: LLM 调用失败且 use_llm=True
     """
-    pass
-
-def analyze_with_llm(self, pair: str, data: pd.DataFrame,
-                     ml_prediction: dict,
-                     technical_signal: dict,
-                     validated_signal: dict = None) -> str:
-    """
-    单独调用大模型生成分析报告
-    
-    Args:
-        pair: 货币对代码
-        data: 汇率数据
-        ml_prediction: ML 预测结果
-        technical_signal: 技术信号
-        validated_signal: 验证后的信号（可选，如未提供则内部生成）
-    
-    Returns:
-        大模型分析报告文本
-    
-    Raises:
-        Exception: 大模型调用失败时抛出异常
-    """
-    # 如果未提供 validated_signal，则内部生成
-    if validated_signal is None:
-        validated_signal = self._validate_signals(technical_signal, ml_prediction)
-    
-    return self._generate_llm_analysis(pair, data, ml_prediction, 
-                                      technical_signal, validated_signal)
-
-def _generate_llm_analysis(self, pair: str, data: pd.DataFrame,
-                          ml_prediction: dict,
-                          technical_signal: dict,
-                          validated_signal: dict) -> str:
-    """
-    生成大模型分析报告（私有方法）
-    
-    Args:
-        pair: 货币对代码
-        data: 汇率数据
-        ml_prediction: ML 预测结果
-        technical_signal: 技术信号
-        validated_signal: 验证后的信号
-    
-    Returns:
-        分析报告文本
-    
-    Raises:
-        Exception: 大模型调用失败时抛出异常
-    """
-    pass
 ```
 
----
+**修改要点：**
 
-## 3. 数据流设计
+1. 添加参数 `use_llm` 和 `llm_length`
+2. 如果 `use_llm=True`，调用 `generate_llm_analysis`
+3. 比较 LLM 建议和 ML 预测的一致性
+4. 优先使用 LLM 建议作为 `final_recommendation`
+5. 在返回结果中包含 `llm_report` 字段
+6. 如果 LLM 调用失败，抛出异常（根据用户要求 B）
 
-### 3.1 主流程（analyze_pair）
+### 3.3 修改主函数
 
-```
-analyze_pair()
-  ├─ 技术信号生成
-  ├─ ML 预测整合
-  ├─ 信号协同验证
-  ├─ [enable_llm=True] 大模型分析
-  │   └─ _generate_llm_analysis()
-  │       ├─ 构建上下文
-  │       ├─ 调用 chat_with_llm()
-  │       └─ 返回分析报告
-  └─ 综合建议生成
-```
+修改 `comprehensive_analysis.py` 的 `__main__` 部分：
 
-### 3.2 独立流程（analyze_with_llm）
-
-```
-analyze_with_llm()
-  └─ _generate_llm_analysis()
-      ├─ 构建上下文
-      ├─ 调用 chat_with_llm()
-      └─ 返回分析报告
-```
-
----
-
-## 4. 上下文构建
-
-### 4.1 关键指标摘要
-
-传递给大模型的上下文包括：
-
-| 类别 | 指标 | 说明 |
-|------|------|------|
-| 基础信息 | 货币对、当前价格、日期 | 基本交易信息 |
-| 技术信号 | RSI、均线交叉、信号强度 | 技术面分析 |
-| ML 预测 | 方向（上涨/下跌）、概率、置信度 | 模型预测 |
-| 交易建议 | 买入/卖出/观望 | 最终建议 |
-| 风险管理 | 止损位、止盈位、风险收益比 | 风险控制 |
-
-### 4.2 Prompt 模板
+**新增命令行参数：**
 
 ```python
-# 计算目标日期
-from datetime import timedelta
-target_date = data['Date'].iloc[-1] + timedelta(days=horizon)
+parser.add_argument('--no-llm', action='store_true',
+                   help='禁用大模型分析（默认启用）')
+parser.add_argument('--llm-length', type=str,
+                   choices=['short', 'medium', 'long'],
+                   default='long',
+                   help='大模型分析长度（默认: long）')
+```
 
-prompt = f"""
-请分析 {pair} 货币对的交易机会：
+**修改调用逻辑：**
 
-**市场环境：**
-- 当前价格：{current_price}
-- 交易日期：{analysis_date}
-- 目标日期：{target_date}
+```python
+use_llm = not args.no_llm
+llm_length = args.llm_length
 
-**技术分析：**
-- RSI：{rsi_value}（{rsi_status}）
+result = analyzer.analyze_pair(pair, df, ml_prediction,
+                               use_llm=use_llm,
+                               llm_length=llm_length)
+```
+
+**修改输出格式：**
+
+如果 `use_llm=True`，显示 LLM 分析报告：
+
+```python
+if use_llm and 'llm_report' in result:
+    print(f"\n【大模型分析报告】\n")
+    print(result['llm_report'])
+```
+
+---
+
+## 4. Prompt 设计
+
+### 4.1 Short Prompt（50-100 字）
+
+```
+你是一个外汇交易分析师。请分析 {pair} 货币对：
+
+当前价格：{current_price}
+
+技术指标摘要：
+{technical_indicators_summary}
+
+ML 预测：{'上涨' if ml_pred==1 else '下跌'}，概率 {ml_prob:.2%}
+
+请给出简短建议（50-100字）和关键理由。
+```
+
+### 4.2 Medium Prompt（200-300 字）
+
+```
+你是一个外汇交易分析师。请分析 {pair} 货币对：
+
+当前价格：{current_price}
+
+关键技术指标：
+- RSI(14): {rsi_value}
+- MACD: {macd_value}
+- 趋势：{trend_description}
+- 支撑/阻力：{support_resistance}
+
+ML 预测：{'上涨' if ml_pred==1 else '下跌'}，概率 {ml_prob:.2%}，置信度：{ml_conf}
+
+请给出市场分析（200-300字），包括：
+1. 技术面分析
+2. 风险提示
+3. 交易建议（buy/sell/hold）
+```
+
+### 4.3 Long Prompt（500+ 字）
+
+```
+你是一个资深外汇交易分析师。请对 {pair} 货币对进行全面分析：
+
+=== 基本信息 ===
+当前价格：{current_price}
+分析日期：{analysis_date}
+
+=== 完整技术指标 ===
+趋势类指标：
+- SMA5: {sma5}, SMA10: {sma10}, SMA20: {sma20}, SMA50: {sma50}
+- EMA5: {ema5}, EMA20: {ema20}
+- MACD: {macd}, MACD_Signal: {macd_signal}, MACD_Hist: {macd_hist}
+- ADX: {adx}, DI_Plus: {di_plus}, DI_Minus: {di_minus}
+
+动量类指标：
+- RSI(14): {rsi}
+- K: {k}, D: {d}, J: {j}
+- Williams%R: {williams_r}
+- CCI: {cci}
+
+波动类指标：
+- ATR(14): {atr}
+- 布林带：上轨 {bb_upper}, 中轨 {bb_middle}, 下轨 {bb_lower}
+- 波动率：{volatility}
+
+价格形态：
+- 价格百分位(120日): {price_percentile}
+- 乖离率：Bias_5={bias_5}, Bias_20={bias_20}
+- 趋势斜率：{trend_slope}
+
+市场环境：
 - 均线排列：{ma_alignment}
-- 技术信号：{technical_signal}（强度：{strength}/100）
 
-**机器学习预测：**
-- 预测方向：{'上涨' if prediction == 1 else '下跌'}
-- 上涨概率：{probability:.2%}
-- 模型置信度：{confidence}
+=== ML 预测结果 ===
+预测方向：{'上涨' if ml_pred==1 else '下跌'}
+预测概率：{ml_prob:.2%}
+置信度：{ml_conf}
 
-**一致性检查：**
-- 技术信号和 ML 预测是否一致：{'是' if consistency else '否'}
-- 如不一致，请分析可能的原因
+=== 分析要求 ===
+请提供完整的市场分析报告（500字以上），包括：
 
-**交易建议：**
-- 建议操作：{recommendation.upper()}
-- 入场价格：{entry_price:.4f}
-- 止损位置：{stop_loss:.4f}
-- 止盈位置：{take_profit:.4f}
-- 风险收益比：1:{risk_reward:.2f}
+1. **技术面深度分析**
+   - 趋势判断（多头/空头/震荡）
+   - 关键技术指标解读
+   - 支撑位和阻力位
+   - 潜在反转信号
 
-**请提供：**
-1. 市场环境分析（趋势、波动、关键支撑/阻力位）
-2. 支持该交易建议的技术面和基本面理由
-3. 潜在风险提示和注意事项
-4. 仓位管理建议（如适用）
+2. **ML 预测验证**
+   - ML 预测与技术面的一致性
+   - 预测可靠性评估
 
-请保持分析客观、专业，避免过度乐观或悲观的情绪化表述。
-"""
+3. **风险分析**
+   - 主要风险因素
+   - 止损建议
+
+4. **交易建议**
+   - 明确建议（buy/sell/hold）
+   - 入场价、止损位、止盈位
+   - 仓位管理建议
+
+5. **关键因素总结**
+   - 列出 3-5 个影响决策的关键因素
+
+请以专业的市场分析师口吻输出，用中文回答。
 ```
 
 ---
 
-## 5. 错误处理
+## 5. 数据流设计
 
-### 5.1 异常类型
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    数据流（双重验证）                        │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  Excel 数据                                                 │
+│       │                                                     │
+│       ▼                                                     │
+│  ┌─────────────────┐                                        │
+│  │ 技术指标引擎    │──→ 35个技术指标                       │
+│  └────────┬────────┘                                        │
+│           │                                                 │
+│           ├──────────────┐                                  │
+│           ▼              ▼                                  │
+│  ┌──────────┐    ┌──────────┐                              │
+│  │指标数据   │    │ ML 模型   │                              │
+│  └────┬─────┘    └────┬─────┘                              │
+│       │               │                                     │
+│       └───────┬───────┘                                     │
+│               ▼                                             │
+│        ┌─────────────┐                                     │
+│        │  构建上下文  │                                     │
+│        │  - 完整指标  │                                     │
+│        │  - ML 预测   │                                     │
+│        └──────┬──────┘                                     │
+│               ▼                                             │
+│        ┌─────────────┐                                     │
+│        │  大模型分析  │                                     │
+│        │  - 定性分析  │                                     │
+│        │  - 双重验证  │                                     │
+│        └──────┬──────┘                                     │
+│               ▼                                             │
+│        ┌─────────────┐                                     │
+│        │  解析输出    │                                     │
+│        │  - 建议      │                                     │
+│        │  - 置信度    │                                     │
+│        │  - 分析报告  │                                     │
+│        └──────┬──────┘                                     │
+│               ▼                                             │
+│  ┌──────────────────────────────────┐                      │
+│  │  综合输出                         │                      │
+│  │  - LLM 建议（优先）              │                      │
+│  │  - 完整分析报告（自然语言）      │                      │
+│  │  - 入场/止损/止盈价格           │                      │
+│  └──────────────────────────────────┘                      │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
 
-| 异常 | 原因 | 处理方式 |
-|------|------|---------|
-| `ValueError` | API 密钥未配置 | 抛出异常，提示用户配置 QWEN_API_KEY |
-| `requests.exceptions.Timeout` | API 调用超时 | 记录警告，返回降级结果 |
-| `requests.exceptions.HTTPError` | HTTP 错误（4xx/5xx） | 记录警告，返回降级结果 |
-| `Exception` | 其他未知错误 | 记录警告，返回降级结果 |
+---
 
-### 5.2 降级策略
+## 6. 错误处理
 
-当大模型调用失败时，不抛出异常，而是：
+根据用户要求，如果 LLM 调用失败，抛出异常并提示用户。
 
 ```python
-# 在 analyze_pair() 中
 try:
-    llm_analysis = self._generate_llm_analysis(...)
-except Exception as e:
-    logger.warning(f"大模型分析失败: {pair} - {e}")
-    llm_analysis = None  # 或返回错误信息字符串
-
-# 在返回值中
-{
-    ...
-    'llm_analysis': llm_analysis  # 可能是分析报告、None 或错误信息
-}
-```
-
-### 5.3 日志记录
-
-### 5.2 日志记录
-
-```python
-import logging
-
-logger = logging.getLogger(__name__)
-
-# 成功时
-logger.info(f"大模型分析成功: {pair}")
-
-# 失败时
-logger.error(f"大模型分析失败: {pair} - {error}")
+    llm_result = self.generate_llm_analysis(pair, data, ml_prediction, llm_length)
+except ValueError as e:
+    # API 密钥未配置
+    raise ValueError(
+        f"大模型分析失败：{str(e)}\n"
+        f"请确保 QWEN_API_KEY 环境变量已设置，或使用 --no-llm 参数禁用大模型分析"
+    )
+except requests.exceptions.RequestException as e:
+    # API 调用失败
+    raise RuntimeError(
+        f"大模型 API 调用失败：{str(e)}\n"
+        f"请检查网络连接或稍后重试"
+    )
 ```
 
 ---
 
-## 6. 配置管理
+## 7. 输出格式示例
 
-### 6.1 配置项
+### 7.1 命令行输出（LLM 启用）
 
-扩展现有的 `LLM_CONFIG`，添加集成相关配置：
+```bash
+$ python3 comprehensive_analysis.py --pair EUR
 
-```python
-# 大模型配置（扩展）
-LLM_CONFIG = {
-    'api_key': os.getenv('QWEN_API_KEY', ''),
-    'chat_url': os.getenv('QWEN_CHAT_URL',
-                         'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions'),
-    'chat_model': os.getenv('QWEN_CHAT_MODEL', 'qwen-plus-2025-12-01'),
-    'max_tokens': int(os.getenv('MAX_TOKENS', 32768)),
-    'enable_thinking': True,
-    
-    # 新增：集成配置
-    'integration_enabled': True,  # 默认启用大模型集成
-    'timeout': 300,              # API 调用超时时间（秒）
-}
+=== EUR 综合分析 ===
+
+当前价格：1.0850
+
+【大模型分析报告】
+
+EUR/USD 目前处于震荡上行趋势中。从技术面看，RSI(14) 为 55.3，处于中性偏强区域，表明多头力量逐步增强。MACD 线上穿信号线，形成金叉，这是短期看涨信号。均线系统呈现多头排列（SMA5 > SMA10 > SMA20 > SMA50），支撑价格上行。
+
+ML 模型预测未来 20 天上涨概率为 68.5%（高置信度），与技术面分析一致，增强了看涨预期。
+
+风险方面，当前价格接近布林带上轨（1.0870），存在短期回调风险。建议严格设置止损位 1.0750（基于 2 倍 ATR）。
+
+关键因素：
+1. MACD 金叉信号
+2. 均线多头排列
+3. ML 预测高概率上涨
+4. 接近布林带上轨的短期风险
+
+【交易建议】
+建议：BUY
+入场价：1.0850
+止损位：1.0750
+止盈位：1.0950
+风险收益比：1:1
+
+---
+ML 预测：上涨（68.5%）
+LLM 建议：BUY（高置信度）
+一致性：✓ 是
 ```
 
-### 6.2 使用配置
+### 7.2 命令行输出（LLM 禁用）
 
-```python
-from config import LLM_CONFIG
+```bash
+$ python3 comprehensive_analysis.py --pair EUR --no-llm
 
-def analyze_pair(self, pair: str, data: pd.DataFrame,
-                ml_prediction: dict,
-                enable_llm: bool = LLM_CONFIG['integration_enabled']) -> dict:
-    """
-    如果未指定 enable_llm，使用配置文件的默认值
-    """
-    ...
+=== EUR 综合分析 ===
+
+当前价格：1.0850
+
+【交易建议】
+建议：BUY（基于技术信号 + ML 预测）
+入场价：1.0850
+止损位：1.0750
+止盈位：1.0950
+风险收益比：1:1
+
+---
+技术信号：BUY（强度 65）
+ML 预测：上涨（68.5%）
+置信度：high
+推理：技术信号 BUY (强度 65)，ML预测上涨 0.68（高置信度），方向一致
 ```
 
 ---
 
-## 7. 返回值结构
+## 8. 改动范围
 
-### 7.1 analyze_pair() 返回值
+### 8.1 修改文件
 
-```python
-{
-    # 现有字段
-    'pair': str,
-    'technical_signal': str,
-    'technical_strength': int,
-    'ml_prediction': int,
-    'ml_probability': float,
-    'ml_confidence': str,
-    'consistency': bool,
-    'recommendation': str,
-    'confidence': str,
-    'reasoning': str,
-    'entry_price': float,
-    'stop_loss': float,
-    'take_profit': float,
-    'risk_reward_ratio': float,
-    'analysis_date': str,
-    
-    # 新增字段
-    'llm_analysis': str  # 大模型分析报告（仅当 enable_llm=True）
-}
+**`comprehensive_analysis.py`**
+
+1. **导入大模型引擎**（新增）：
+   ```python
+   from llm_services.qwen_engine import chat_with_llm
+   ```
+
+2. **新增方法 `generate_llm_analysis`**（约 150 行）：
+   - 提取技术指标数据
+   - 构建 Prompt
+   - 调用 LLM
+   - 解析输出
+
+3. **修改方法 `analyze_pair`**（约 50 行改动）：
+   - 添加参数 `use_llm` 和 `llm_length`
+   - 集成 LLM 调用
+   - 更新返回结果
+
+4. **修改主函数**（约 30 行改动）：
+   - 添加命令行参数
+   - 修改调用逻辑
+   - 更新输出格式
+
+**总改动量：约 230 行**
+
+### 8.2 新增测试
+
+**`test_comprehensive_analysis.py`**
+
+新增测试用例：
+
+1. `test_generate_llm_analysis_short`
+2. `test_generate_llm_analysis_medium`
+3. `test_generate_llm_analysis_long`
+4. `test_llm_output_parsing`
+5. `test_llm_error_handling`
+6. `test_analyze_pair_with_llm`
+7. `test_analyze_pair_without_llm`
+
+**总测试用例：约 7 个**
+
+---
+
+## 9. 配置要求
+
+### 9.1 环境变量
+
+需要设置以下环境变量（已在 `.env.example` 中）：
+
+```bash
+QWEN_API_KEY=your_api_key_here
+QWEN_CHAT_URL=https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions
+QWEN_CHAT_MODEL=qwen-plus-2025-12-01
+MAX_TOKENS=32768
 ```
 
-### 7.2 analyze_with_llm() 返回值
+### 9.2 依赖
 
-```python
-str  # 大模型分析报告文本
+所有依赖已在 `requirements.txt` 中：
+- `requests>=2.31.0`（HTTP 请求）
+- `python-dotenv>=1.0.0`（环境变量管理）
+
+---
+
+## 10. 使用示例
+
+### 10.1 默认使用 LLM（long 长度）
+
+```bash
+python3 comprehensive_analysis.py --pair EUR
+```
+
+### 10.2 使用 medium 长度
+
+```bash
+python3 comprehensive_analysis.py --pair EUR --llm-length medium
+```
+
+### 10.3 禁用 LLM
+
+```bash
+python3 comprehensive_analysis.py --pair EUR --no-llm
+```
+
+### 10.4 分析所有货币对
+
+```bash
+python3 comprehensive_analysis.py
 ```
 
 ---
 
-## 8. 测试策略
+## 11. 成功标准
 
-### 8.1 单元测试
-
-**文件**: `tests/test_comprehensive_analysis.py`
-
-```python
-def test_analyze_pair_with_llm_enabled():
-    """测试启用大模型的分析"""
-    # Mock 大模型调用
-    # 验证 llm_analysis 字段存在且非空
-
-def test_analyze_pair_with_llm_disabled():
-    """测试禁用大模型的分析"""
-    # 验证 llm_analysis 字段不存在或为 None
-
-def test_analyze_with_llm():
-    """测试独立调用大模型"""
-    # Mock 大模型调用
-    # 验证返回值格式正确
-
-def test_analyze_with_llm_without_validated_signal():
-    """测试独立调用时未提供 validated_signal"""
-    # 验证内部生成 validated_signal
-
-def test_llm_context_building():
-    """测试上下文构建逻辑"""
-    # 验证传递给大模型的上下文格式和内容
-
-def test_llm_error_handling_with_degradation():
-    """测试大模型错误处理（降级策略）"""
-    # Mock API 调用失败
-    # 验证不抛出异常，而是返回 None 或错误信息
-
-def test_llm_api_key_not_configured():
-    """测试 API 密钥未配置时的行为"""
-    # 验证抛出 ValueError
-
-def test_llm_empty_response():
-    """测试大模型返回空内容的处理"""
-    # Mock 返回空字符串
-    # 验证处理逻辑
-
-def test_llm_context_with_missing_indicators():
-    """测试上下文构建时缺少某些指标"""
-    # 验证处理逻辑（使用默认值或跳过该指标）
-
-def test_enable_llm_with_insufficient_data():
-    """测试启用大模型但数据不足时的行为"""
-    # 验证处理逻辑
-```
-
-### 8.2 集成测试
-
-```python
-def test_end_to_end_with_llm():
-    """测试端到端工作流（含大模型）"""
-    # 完整工作流：数据加载 → 技术指标 → ML 预测 → 综合分析（含大模型）
-```
-
-### 8.3 Mock 策略
-
-使用 `unittest.mock` 模拟大模型调用：
-
-```python
-from unittest.mock import patch
-
-@patch('llm_services.qwen_engine.chat_with_llm')
-def test_analyze_with_llm_mock(mock_chat):
-    mock_chat.return_value = "模拟的分析报告"
-    # 测试逻辑...
-```
-
----
-
-## 9. 使用示例
-
-### 9.1 自动集成（默认）
-
-```python
-from data_services.excel_loader import FXDataLoader
-from ml_services.fx_trading_model import FXTradingModel
-from comprehensive_analysis import ComprehensiveAnalyzer
-
-loader = FXDataLoader()
-model = FXTradingModel()
-analyzer = ComprehensiveAnalyzer()
-
-# 加载数据
-data = loader.load_pair('EUR', 'FXRate_20260320.xlsx')
-
-# ML 预测
-ml_pred = model.predict('EUR', data)
-
-# 综合分析（自动启用大模型）
-result = analyzer.analyze_pair('EUR', data, ml_pred)
-
-print(result['llm_analysis'])  # 大模型分析报告
-```
-
-### 9.2 禁用大模型
-
-```python
-# 禁用大模型分析
-result = analyzer.analyze_pair('EUR', data, ml_pred, enable_llm=False)
-
-# result 不包含 llm_analysis 字段
-```
-
-### 9.3 独立调用大模型
-
-```python
-# 先获取技术信号和 ML 预测
-technical_signal = analyzer._generate_technical_signal(data)
-ml_pred = model.predict('EUR', data)
-
-# 单独调用大模型
-llm_report = analyzer.analyze_with_llm('EUR', data, ml_pred, technical_signal)
-
-print(llm_report)
-```
-
----
-
-## 10. 性能考虑
-
-### 10.1 性能影响
-
-| 操作 | 预计耗时 | 说明 |
-|------|---------|------|
-| 技术信号生成 | < 0.1 秒 | 本地计算 |
-| ML 预测 | < 0.5 秒 | 本地模型 |
-| 大模型分析 | 10-30 秒 | API 调用 |
-| **总计（启用 LLM）** | **10-31 秒** | |
-| **总计（禁用 LLM）** | **< 1 秒** | |
-
-### 10.2 优化建议
-
-- 当前设计为同步调用，适合单次分析场景
-- 如果需要批量分析多个货币对，可以考虑：
-  - 并行调用大模型（使用多线程/多进程）
-  - 异步调用（使用 asyncio）
-  - 缓存分析结果（相同参数无需重复调用）
-
----
-
-## 11. 日志记录
-
-### 11.1 日志记录点
-
-```python
-def analyze_pair(self, pair: str, data: pd.DataFrame, ...):
-    logger.info(f"开始分析 {pair}，大模型启用: {enable_llm}")
-    
-    # ... 技术信号生成 ...
-    
-    # ... ML 预测整合 ...
-    
-    # ... 信号协同验证 ...
-    
-    if enable_llm:
-        logger.info(f"准备调用大模型: {pair}")
-        try:
-            llm_analysis = self._generate_llm_analysis(...)
-            logger.info(f"大模型分析成功: {pair}")
-        except Exception as e:
-            logger.warning(f"大模型分析失败: {pair} - {e}")
-            llm_analysis = None
-    
-    # ... 综合建议生成 ...
-    
-    logger.info(f"分析完成: {pair}，是否包含 LLM 分析: {llm_analysis is not None}")
-```
-
----
-
-## 12. 实施步骤
-
-### Step 1: 扩展 ComprehensiveAnalyzer
-
-- 在 `comprehensive_analysis.py` 中添加新方法
-- 实现 `_generate_llm_analysis()` 私有方法
-- 修改 `analyze_pair()` 方法签名
-
-### Step 2: 实现上下文构建
-
-- 提取关键指标
-- 构建 Prompt 模板
-- 实现上下文序列化
-
-### Step 3: 集成大模型调用
-
-- 导入 `llm_services.qwen_engine`
-- 调用 `chat_with_llm()`
-- 实现错误处理和日志记录
-
-### Step 4: 更新返回值
-
-- 在 `analyze_pair()` 返回字典中添加 `llm_analysis` 字段
-- 确保 `enable_llm=False` 时不添加该字段
-
-### Step 5: 编写测试
-
-- 添加单元测试（Mock 大模型）
-- 添加集成测试
-- 验证错误处理路径
-
-### Step 6: 更新文档
-
-- 更新 `AGENTS.md`
-- 更新 `README.md` 使用示例
-- 更新 `progress.txt`
-
----
-
-## 13. 成功标准
-
-- [ ] `analyze_pair()` 支持 `enable_llm` 参数
-- [ ] `analyze_with_llm()` 独立方法正常工作
-- [ ] 大模型调用失败时正确抛出异常
-- [ ] 返回值包含 `llm_analysis` 字段（当启用时）
-- [ ] 测试覆盖率 ≥ 85%
-- [ ] 文档更新完整
+| 标准 | 验证方法 |
+|------|---------|
+| LLM 分析功能可用 | 运行 `--with-llm` 成功生成分析报告 |
+| 输出长度符合预期 | 检查 short/medium/long 输出字数 |
+| 错误处理正确 | 未配置 API 密钥时抛出明确异常 |
+| 双重验证实现 | 返回结果包含 LLM 建议、ML 预测、一致性 |
+| 命令行参数有效 | `--no-llm` 和 `--llm-length` 正确工作 |
+| 测试通过 | 新增 7 个测试用例全部通过 |
 
 ---
 
 ## 12. 风险与缓解
 
-| 风险 | 影响 | 缓解措施 |
-|------|------|---------|
-| **API 调用慢** | 分析耗时增加 | 设置超时（300秒），提供 disable 选项 |
-| **API 费用** | 产生额外成本 | 默认启用，但用户可禁用 |
-| **响应质量不稳定** | 分析报告质量下降 | 优化 Prompt 模板，提供清晰指令 |
-| **Token 超限** | API 调用失败 | 控制上下文长度，仅传递关键指标 |
+| 风险 | 缓解措施 |
+|------|---------|
+| **LLM 调用延迟** | 提示用户可能需要等待，支持 `--no-llm` 禁用 |
+| **API 调用失败** | 提供明确的错误信息，建议用户检查配置 |
+| **LLM 输出解析失败** | 设计灵活的解析逻辑，支持多种输出格式 |
+| **成本问题** | 在文档中说明 API 调用可能产生费用 |
+
+---
+
+## 13. 后续优化建议
+
+### 13.1 短期优化
+
+1. **添加 LLM 输出缓存**：相同分析结果缓存，减少 API 调用
+2. **优化 Prompt**：根据实际使用反馈调整 prompt 模板
+3. **添加更多输出格式**：支持 JSON、Markdown 等格式
+
+### 13.2 长期优化
+
+1. **支持更多 LLM**：扩展支持其他大模型（如 GPT-4）
+2. **历史分析对比**：保存历史分析，支持对比和复盘
+3. **个性化配置**：允许用户自定义 prompt 和输出格式
 
 ---
 
