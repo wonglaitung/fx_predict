@@ -4,10 +4,11 @@
 
 本项目是一个基于机器学习和人机协作的外汇汇率预测系统，包含：
 
-- **技术指标引擎**：计算 35 个经过验证的技术指标
-- **CatBoost 预测模型**：20 天周期，预测汇率涨跌方向
-- **人机协作系统**：整合 ML 预测和技术信号，生成交易建议
-- **大模型集成**：提供市场分析和建议解释
+- **双重验证分析系统**：以大模型为核心决策者，整合 35 个技术指标和 ML 预测结果，生成专业自然语言分析报告
+- **技术指标引擎**：计算 35 个专业技术指标（趋势、动量、波动、价格形态、市场环境），全部使用滞后数据防止数据泄漏
+- **CatBoost 预测模型**：20 天周期预测汇率涨跌方向，支持多货币对独立建模
+- **大模型集成**：通义千问 API，提供技术面深度分析、ML 预测验证、风险分析和交易建议
+- **一体化脚本**：`run_full_pipeline.sh` 脚本实现训练、预测、分析全流程自动化
 
 ## 快速开始
 
@@ -26,17 +27,39 @@ cp .env.example .env
 # 编辑 .env 文件，填入 QWEN_API_KEY
 ```
 
-### 运行示例
+### 一键运行完整流程（推荐）
 
 ```bash
-# 训练模型
-python3 ml_services/fx_trading_model.py --mode train --pair EUR --horizon 20
+# 运行完整流程（训练 + 预测 + 分析）
+./run_full_pipeline.sh
 
-# 生成预测
-python3 ml_services/fx_trading_model.py --mode predict --pair EUR
+# 跳过训练，只进行预测和分析（模型已存在时）
+./run_full_pipeline.sh --skip-training
 
-# 综合分析
-python3 comprehensive_analysis.py --date 2026-03-25
+# 禁用大模型分析
+./run_full_pipeline.sh --no-llm
+
+# 指定分析长度（short/medium/long）
+./run_full_pipeline.sh --llm-length short
+```
+
+### 单独运行各模块
+
+```bash
+# 训练单个货币对模型
+python3 -m ml_services.fx_trading_model --mode train --pair EUR
+
+# 生成单个货币对预测
+python3 -m ml_services.fx_trading_model --mode predict --pair EUR
+
+# 综合分析（启用大模型）
+python3 -m comprehensive_analysis --pair EUR
+
+# 综合分析（禁用大模型）
+python3 -m comprehensive_analysis --pair EUR --no-llm
+
+# 指定分析长度
+python3 -m comprehensive_analysis --pair EUR --llm-length medium
 ```
 
 ### 运行测试
@@ -65,23 +88,24 @@ pytest tests/ --cov=. --cov-report=html --cov-report=term
 
 ```
 fx_predict/
+├── run_full_pipeline.sh          # 一体化脚本（推荐）
 ├── data/                           # 数据目录
 │   ├── models/                    # 训练好的模型（CatBoost）
 │   └── predictions/               # 预测结果
 ├── data_services/                 # 数据服务层
-│   ├── excel_loader.py           # Excel 数据加载器（支持自动生成 OHLC）
-│   └── technical_analysis.py     # 技术指标计算引擎（35 个指标）
+│   ├── excel_loader.py           # Excel 数据加载器
+│   └── technical_analysis.py     # 技术指标引擎（35个指标）
 ├── ml_services/                   # 机器学习服务层
 │   ├── fx_trading_model.py       # CatBoost 模型
-│   ├── feature_engineering.py    # 特征工程（价格、偏离率、波动率、趋势）
-│   └── base_model_processor.py   # 基础模型处理器（模型保存/加载）
+│   ├── feature_engineering.py    # 特征工程（18个特征）
+│   └── base_model_processor.py   # 模型处理器
 ├── llm_services/                  # 大模型服务层
 │   └── qwen_engine.py            # 通义千问 API 封装
-├── comprehensive_analysis.py      # 人机协作整合层
+├── comprehensive_analysis.py      # 人机协作整合层（双重验证）
 ├── config.py                      # 配置文件
 ├── requirements.txt               # 依赖列表
-└── tests/                         # 测试文件（88 个测试用例）
-    ├── test_integration.py       # 集成测试（9 个端到端测试）
+└── tests/                         # 测试文件（103个测试用例）
+    ├── test_integration.py       # 集成测试
     ├── test_comprehensive_analysis.py
     ├── test_excel_loader.py
     ├── test_feature_engineering.py
@@ -162,6 +186,66 @@ fx_predict/
 | MA_Alignment | 均线排列强度（多头/空头排列） |
 | （综合 SMA5/SMA10/SMA20/SMA50） | |
 
+### 交叉特征（2个）
+
+| 指标 | 说明 |
+|------|------|
+| SMA5_cross_SMA20 | 均线交叉信号（金叉/死叉） |
+| Price_vs_Bollinger | 价格在布林带中的位置 |
+
+## 人机协作分析流程
+
+系统采用**双重验证分析机制**，以大模型为核心决策者，整合完整的技术指标数据和ML预测结果，生成自然语言格式的市场分析报告和交易建议。
+
+### 工作流程
+
+```
+技术指标数据（35个） → LLM 定性分析
+                      ↓
+ML 预测结果 → LLM 双重验证 → 生成综合建议 + 完整分析报告
+                      ↓
+              自然语言输出
+```
+
+### 分析流程
+
+1. **数据准备**：提取所有技术指标的当前值（35个专业指标）
+2. **上下文构建**：整合技术指标、ML预测结果、当前价格等信息
+3. **大模型分析**：
+   - 技术面深度分析（趋势、支撑阻力、反转信号）
+   - ML预测验证（一致性评估、可靠性判断）
+   - 风险分析（风险因素、止损建议）
+   - 交易建议（明确方向、入场/止损/止盈价格、仓位管理）
+4. **输出解析**：提取建议方向、置信度、完整分析报告、关键因素
+
+### 分析报告类型
+
+支持三种长度的分析报告，适应不同场景需求：
+
+- **Short（50-100字）**：简短建议和关键理由
+- **Medium（200-300字）**：技术面分析、风险提示、交易建议
+- **Long（500+字）**：完整市场分析报告，包含：
+  - 技术面深度分析
+  - ML预测验证
+  - 风险分析
+  - 交易建议（入场价、止损位、止盈位、仓位管理）
+  - 关键因素总结（3-5个）
+
+### 决策优先级
+
+系统优先使用**LLM建议**作为最终决策，ML预测作为验证参考。当LLM不可用时，降级到基于ML预测的规则引擎。
+
+### 输出内容
+
+每个货币对的分析输出包括：
+
+- **基本信息**：当前价格、分析日期
+- **ML预测**：预测方向（上涨/下跌）、预测概率、置信度
+- **LLM建议**：建议方向（buy/sell/hold）、置信度、一致性（vs ML预测）
+- **完整分析报告**：自然语言格式的专业市场分析
+- **关键因素**：影响决策的3-5个核心因素
+- **交易执行**：入场价、止损位、止盈位、风险回报比
+
 ## 数据泄漏防范
 
 **关键原则**：所有技术指标和特征都使用滞后数据（`.shift(1)`），确保不使用未来信息。
@@ -176,6 +260,7 @@ fx_predict/
    - 价格衍生特征：`Close_change_1d = df['Close'].diff(1).shift(1)`
    - 偏离率特征：`Bias_5 = ((Close - SMA5) / SMA5).shift(1)`
    - 滞后特征：`Close_lag_1 = df['Close'].shift(1)`
+   - 交叉特征：`SMA5_cross_SMA20 = cross_signal.shift(1)`
 
 3. **训练阶段**：
    - 目标变量使用 `shift(-horizon)`（仅用于训练，预测时不可用）
@@ -245,13 +330,13 @@ if ml_probability >= 0.60 and ml_prediction == 1:
 
 ### 测试统计
 
-- **总测试数**：88 个
-- **单元测试**：79 个
+- **总测试数**：103 个
+- **单元测试**：94 个
   - test_comprehensive_analysis.py: 4 个
   - test_excel_loader.py: 7 个
-  - test_feature_engineering.py: 29 个
+  - test_feature_engineering.py: 35 个（包含交叉特征测试）
   - test_fx_trading_model.py: 6 个
-  - test_technical_analysis.py: 33 个
+  - test_technical_analysis.py: 42 个
 - **集成测试**：9 个
   - test_end_to_end_workflow: 端到端工作流
   - test_multiple_pairs_workflow: 多货币对工作流
@@ -307,7 +392,7 @@ logging.basicConfig(
 ### 日志输出
 
 - **控制台输出**：实时显示
-- **文件输出**：`fx_predict.log`（如果需要）
+- **文件输出**：`qwen_engine.log`（大模型调用日志）
 
 ## 特征工程
 
@@ -331,6 +416,10 @@ logging.basicConfig(
 
 6. **市场环境特征**（1个）：
    - MA_Alignment：均线排列强度
+
+7. **交叉特征**（2个）：
+   - SMA5_cross_SMA20：均线交叉信号（金叉/死叉）
+   - Price_vs_Bollinger：价格在布林带中的位置
 
 ### 特征验证
 
@@ -359,7 +448,7 @@ logging.basicConfig(
 ### 预测周期
 
 - **默认**：20 天
-- **可配置**：通过 `--horizon` 参数调整
+- **可配置**：通过 `config.py` 调整
 
 ### 数据分割
 
@@ -410,7 +499,19 @@ pytest tests/test_integration.py::test_end_to_end_workflow -v -s
 
 ### 4. 大模型不可用
 
-如果未配置 `QWEN_API_KEY`，大模型功能将不可用，但不影响核心功能（ML 预测和技术分析）。
+如果未配置 `QWEN_API_KEY`，大模型功能将不可用。系统会自动降级到基于 ML 预测的规则引擎，不影响核心功能（ML 预测和技术分析）。
+
+### 5. Python 模块导入错误
+
+运行脚本时遇到 `ModuleNotFoundError`，请确保使用 `-m` 参数：
+
+```bash
+# 错误方式
+python3 ml_services/fx_trading_model.py
+
+# 正确方式
+python3 -m ml_services.fx_trading_model
+```
 
 ## 开发者
 
