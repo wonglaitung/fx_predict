@@ -52,6 +52,15 @@ pytest tests/test_integration.py -v
 pytest tests/ --cov=. --cov-report=html --cov-report=term
 ```
 
+## Session Workflow
+
+- **会话开始时必须执行以下操作：**
+  - 读取 `progress.txt` 文件，了解项目当前进展
+  - 审查 `lessons.md` 文件，检查是否有错误需要纠正
+- **功能更新后：**
+  - 更新 `progress.txt`，记录新的进展
+  - 如有新的学习心得或经验教训，更新 `lessons.md`
+
 ## 项目结构
 
 ```
