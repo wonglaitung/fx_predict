@@ -1223,3 +1223,247 @@ print(f"30天准确率: {metrics['accuracy']:.2%}")
 ---
 
 **文档结束**
+---
+
+## 16. 一体化脚本设计
+
+### 16.1 目标
+
+提供一键式脚本，一次性完成训练、预测和报告生成，简化用户使用流程。
+
+### 16.2 脚本设计
+
+**脚本名称**：`run_pipeline.py`
+
+**功能流程**：
+```
+1. 加载数据（Excel 文件）
+2. 训练多周期模型（1天/5天/20天）
+3. 预测最新数据
+4. 综合分析（技术信号 + ML 预测）
+5. 调用 LLM 生成分析解释
+6. 生成完整报告（Markdown + CSV）
+```
+
+### 16.3 输出格式
+
+**Markdown 报告**（`report_YYYYMMDD.md`）：
+
+```markdown
+# FX Predict 分析报告
+
+生成时间：2026-03-25
+报告类型：完整报告（多周期预测 + 技术分析 + LLM 解释）
+
+---
+
+## EUR/USD 分析
+
+### 多周期预测
+
+| 周期 | 预测 | 概率 | 置信度 | 建议 |
+|------|------|------|--------|------|
+| 1天 | 上涨 | 0.65 | 高 | 买入 |
+| 5天 | 上涨 | 0.58 | 中 | 买入 |
+| 20天 | 上涨 | 0.72 | 高 | 买入 |
+
+### 技术指标分析
+
+**趋势指标**：
+- SMA5/SMA10/SMA20：多头排列
+- EMA5 > EMA20：看涨趋势
+- MACD：金叉，MACD 线上穿信号线
+
+**动量指标**：
+- RSI(14): 65.5（中性偏多）
+- KDJ：K > D > J，超买区域
+- ADX: 25（趋势强度中等）
+
+**波动指标**：
+- ATR(14): 0.0085
+- 布林带：价格位于中轨附近
+
+### 综合技术信号
+
+**信号强度**: 75/100（强烈买入）
+
+**信号来源**：
+- RSI 超卖反转：+20
+- 均线金叉：+15
+- MACD 金叉：+10
+- 多头排列：+10
+- ADX 趋势确认：+5
+
+### 交易建议
+
+**建议**: 买入
+**理由**: 多周期预测一致看涨，技术指标支撑，趋势强度中等
+
+**入场价**: 1.0850
+**止损位**: 1.0750（-0.0085 × 2）
+**止盈位**: 1.0950（+0.0085 × 2）
+**风险收益比**: 1:1
+
+### LLM 分析
+
+[通义千问生成的市场分析]
+
+---
+
+## JPY/USD 分析
+
+[类似的格式...]
+
+---
+
+## 总体摘要
+
+| 货币对 | 1天 | 5天 | 20天 | 综合建议 |
+|--------|-----|-----|------|---------|
+| EUR/USD | 上涨 | 上涨 | 上涨 | 买入 |
+| JPY/USD | 下跌 | 观望 | 观望 | 观望 |
+| AUD/USD | 上涨 | 上涨 | 上涨 | 买入 |
+| GBP/USD | 观望 | 上涨 | 上涨 | 观望 |
+| CAD/USD | 下跌 | 下跌 | 下跌 | 卖出 |
+| NZD/USD | 观望 | 观望 | 上涨 | 观望 |
+
+---
+
+## 免责声明
+
+本报告仅供参考，不构成投资建议。投资有风险，入市需谨慎。
+```
+
+**CSV 报告**（`predictions_YYYYMMDD.csv`）：
+
+```csv
+pair,horizon,prediction,probability,confidence,recommendation,entry_price,stop_loss,take_profit,analysis_date,target_date
+EUR,1,1,0.65,high,buy,1.0850,1.0750,1.0950,2026-03-25,2026-03-26
+EUR,5,1,0.58,medium,buy,1.0850,1.0750,1.0950,2026-03-25,2026-03-30
+EUR,20,1,0.72,high,buy,1.0850,1.0750,1.0950,2026-03-25,2026-04-14
+JPY,1,0,0.45,low,hold,149.50,150.00,149.00,2026-03-25,2026-03-26
+JPY,5,0,0.50,medium,hold,149.50,150.00,149.00,2026-03-25,2026-03-30
+JPY,20,0,0.52,medium,hold,149.50,150.00,149.00,2026-03-25,2026-04-14
+...
+```
+
+### 16.4 命令行接口
+
+```bash
+# 运行完整流程（所有货币对，默认使用 Excel 文件）
+python3 run_pipeline.py
+
+# 指定数据文件
+python3 run_pipeline.py --data FXRate_20260320.xlsx
+
+# 指定货币对
+python3 run_pipeline.py --data FXRate_20260320.xlsx --pairs EUR,JPY,AUD
+
+# 指定输出目录
+python3 run_pipeline.py --data FXRate_20260320.xlsx --output reports/
+
+# 禁用 LLM（快速生成）
+python3 run_pipeline.py --data FXRate_20260320.xlsx --no-llm
+
+# 仅预测（不训练）
+python3 run_pipeline.py --data FXRate_20260320.xlsx --skip-training
+
+# 仅生成报告（使用已有模型）
+python3 run_pipeline.py --data FXRate_20260320.xlsx --predict-only
+
+# 详细模式（显示详细日志）
+python3 run_pipeline.py --data FXRate_20260320.xlsx --verbose
+```
+
+### 16.5 参数说明
+
+| 参数 | 说明 | 默认值 | 必需 |
+|------|------|--------|------|
+| `--data` | Excel 数据文件路径 | `FXRate_*.xlsx` | 否 |
+| `--pairs` | 货币对列表（逗号分隔） | 所有支持的货币对 | 否 |
+| `--horizons` | 预测周期（逗号分隔） | `1,5,20` | 否 |
+| `--output` | 输出目录 | `data/predictions/` | 否 |
+| `--no-llm` | 禁用 LLM 调用 | `False` | 否 |
+| `--skip-training` | 跳过模型训练 | `False` | 否 |
+| `--predict-only` | 仅预测，不训练 | `False` | 否 |
+| `--verbose` | 详细模式 | `False` | 否 |
+
+### 16.6 技术实现要点
+
+#### 16.6.1 进度显示
+
+```python
+from tqdm import tqdm
+
+# 并行训练多个模型
+for pair in pairs:
+    for horizon in horizons:
+        with tqdm(total=100, desc=f"训练 {pair} {horizon}天模型") as pbar:
+            model.train(pair, data, horizon=horizon)
+            pbar.update(100)
+```
+
+#### 16.6.2 错误容忍
+
+```python
+# 单个模型失败不影响其他模型
+for pair in pairs:
+    for horizon in horizons:
+        try:
+            model.train(pair, data, horizon=horizon)
+        except Exception as e:
+            logger.error(f"训练 {pair} {horizon}天模型失败: {e}")
+            continue
+```
+
+#### 16.6.3 增量更新
+
+```python
+# 如果模型已存在，跳过训练（可选）
+def should_train(pair: str, horizon: int, force: bool = False) -> bool:
+    if force:
+        return True
+    model_path = f"data/models/{pair}_model_{horizon}d.pkl"
+    if Path(model_path).exists():
+        logger.info(f"模型已存在，跳过训练: {model_path}")
+        return False
+    return True
+```
+
+### 16.7 使用示例
+
+**Python API**：
+
+```python
+from run_pipeline import Pipeline
+
+# 创建管道
+pipeline = Pipeline(
+    data_file='FXRate_20260320.xlsx',
+    pairs=['EUR', 'JPY'],
+    horizons=[1, 5, 20],
+    output_dir='reports/'
+)
+
+# 运行完整流程
+results = pipeline.run()
+
+# 访问结果
+for pair, pair_results in results.items():
+    print(f"{pair}:")
+    for horizon, pred in pair_results.items():
+        print(f"  {horizon}天: {pred['recommendation']} (置信度: {pred['confidence']})")
+```
+
+### 16.8 成功标准
+
+| 指标 | 目标 |
+|------|------|
+| 脚本可执行性 | 无错误完成所有步骤 |
+| 报告完整性 | Markdown 和 CSV 都生成 |
+| 报告准确性 | 所有预测数据正确 |
+| 执行时间 | 5 分钟内完成（6 个货币对） |
+| LLM 集成 | 成功生成分析解释（如果启用） |
+
+---
+
