@@ -47,6 +47,10 @@ class ComprehensiveAnalyzer:
             ValueError: API 密钥未配置或输出格式错误
             requests.exceptions.RequestException: API 调用失败
         """
+        # 确保技术指标已计算
+        if 'RSI14' not in data.columns:
+            data = self.technical_analyzer.compute_all_indicators(data)
+        
         # 暂时返回空字典，稍后实现
         return {}
 
