@@ -6,6 +6,11 @@
 # 完整执行训练、预测和分析全流程，支持所有货币对。
 ################################################################################
 
+# 设置 Python 路径
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export PYTHONPATH="${SCRIPT_DIR}:${PYTHONPATH}"
+cd "${SCRIPT_DIR}"
+
 set -e  # 遇到错误立即退出
 
 # 默认参数
@@ -95,7 +100,7 @@ train_all_pairs() {
     for pair in "${pairs[@]}"; do
         print_info "训练 ${pair} 模型..."
         
-        if python3 ml_services/fx_trading_model.py \
+        if python3 -m ml_services.fx_trading_model \
             --mode train \
             --pair "$pair"; then
             print_success "${pair} 模型训练完成"
@@ -125,7 +130,7 @@ predict_all_pairs() {
     for pair in "${pairs[@]}"; do
         print_info "预测 ${pair}..."
         
-        if python3 ml_services/fx_trading_model.py \
+        if python3 -m ml_services.fx_trading_model \
             --mode predict \
             --pair "$pair"; then
             print_success "${pair} 预测完成"
@@ -160,7 +165,7 @@ analyze_all_pairs() {
     # 分析所有货币对
     print_info "运行综合分析（6个货币对）..."
     
-    if python3 comprehensive_analysis.py \
+    if python3 -m comprehensive_analysis \
         --data-file "$DATA_FILE" \
         $llm_args; then
         print_success "所有综合分析完成"
