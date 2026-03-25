@@ -90,6 +90,7 @@ class FXDataLoader:
         - 数据排序（升序：旧数据在前）
         - 缺失值处理（前向填充）
         - 数据类型转换
+        - 自动生成缺失的 OHLC 列（如果只有 Close 列）
 
         Args:
             df: 原始数据
@@ -113,6 +114,22 @@ class FXDataLoader:
         # 按日期升序排序（旧数据在前）
         if 'Date' in df.columns:
             df = df.sort_values('Date', ascending=True).reset_index(drop=True)
+
+        # 如果缺少 High/Low/Open 列，基于 Close 列自动生成
+        # 这使得技术指标引擎可以正常工作
+        if 'Close' in df.columns:
+            if 'High' not in df.columns:
+                # High = Close * 1.01（假设波动 1%）
+                df['High'] = df['Close'] * 1.01
+                self.logger.info("自动生成 High 列")
+            if 'Low' not in df.columns:
+                # Low = Close * 0.99（假设波动 1%）
+                df['Low'] = df['Close'] * 0.99
+                self.logger.info("自动生成 Low 列")
+            if 'Open' not in df.columns:
+                # Open = Close（简化处理）
+                df['Open'] = df['Close']
+                self.logger.info("自动生成 Open 列")
 
         # 前向填充缺失值
         df = df.ffill()
