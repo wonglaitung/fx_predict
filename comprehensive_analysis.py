@@ -468,12 +468,25 @@ if __name__ == "__main__":
                                                llm_length=llm_length)
 
                 print(f"--- {pair} ---")
-                print(f"建议: {result['final_recommendation'].upper()} | "
-                      f"入场: {result['entry_price']:.4f} | "
-                      f"止损: {result['stop_loss']:.4f} | "
-                      f"止盈: {result['take_profit']:.4f}")
-                print(f"技术: {result['technical_signal']} ({result['technical_strength']:.0f}) | "
-                      f"ML: {'上涨' if result['ml_prediction'] == 1 else '下跌'} ({result['ml_probability']:.2f})")
+                print(f"技术信号: {result['technical_signal']} (强度: {result['technical_strength']:.0f})")
+                print(f"ML预测: {'上涨' if result['ml_prediction'] == 1 else '下跌'} (概率: {result['ml_probability']:.2f})")
+                print(f"置信度: {result['ml_confidence']}")
+                print(f"一致性: {'是' if result['consistency'] else '否'}")
+                print(f"\n建议: {result['final_recommendation']}")
+                print(f"入场价: {result['entry_price']:.4f}")
+                print(f"止损位: {result['stop_loss']:.4f}")
+                print(f"止盈位: {result['take_profit']:.4f}")
+                print(f"\n推理: {result['reasoning']}")
+                
+                if use_llm and 'llm_report' in result and result['llm_report']:
+                    print(f"\n{'='*60}")
+                    print(f"大模型分析报告")
+                    print(f"{'='*60}")
+                    print(f"\n{result['llm_report']}")
+                    if result.get('key_factors'):
+                        print(f"\n关键因素：{', '.join(result['key_factors'])}")
+                    print(f"{'='*60}\n")
+                
                 print()
             except Exception as e:
                 logger.error(f"分析货币对 {pair} 失败: {e}")
