@@ -190,3 +190,74 @@ class ComprehensiveAnalyzer:
         }
 
         return result
+
+
+if __name__ == "__main__":
+    import argparse
+    from data_services.excel_loader import FXDataLoader
+    from ml_services.fx_trading_model import FXTradingModel
+    from config import MODEL_CONFIG
+
+    parser = argparse.ArgumentParser(description="外汇综合分析")
+    parser.add_argument('--date', type=str, default=None, help='分析日期（YYYY-MM-DD）')
+    parser.add_argument('--pair', type=str, help='货币对代码（如 EUR、JPY 等）')
+    parser.add_argument('--data_file', type=str, default='FXRate_20260320.xlsx', help='数据文件路径')
+
+    args = parser.parse_args()
+
+    analyzer = ComprehensiveAnalyzer()
+
+    # 如果指定了货币对，只分析该货币对
+    if args.pair:
+        loader = FXDataLoader()
+        df = loader.load_pair(args.pair, args.data_file)
+
+        if df is None or df.empty:
+            print(f"错误: 无法加载货币对 {args.pair} 的数据")
+            exit(1)
+
+        # 创建模型
+        model = FXTradingModel(MODEL_CONFIG)
+
+        # 生成预测
+        ml_prediction = model.predict(args.pair, df)
+
+        # 综合分析
+        result = analyzer.analyze_pair(args.pair, df, ml_prediction)
+
+        print(f"\n=== {args.pair} 综合分析 ===")
+        print(f"技术信号: {result['technical_signal']} (强度: {result['technical_strength']:.0f})")
+        print(f"ML预测: {'上涨' if result['ml_prediction'] == 1 else '下跌'} (概率: {result['ml_probability']:.2f})")
+        print(f"置信度: {result['ml_confidence']}")
+        print(f"一致性: {'是' if result['consistency'] else '否'}")
+        print(f"\n建议: {result['recommendation']}")
+        print(f"入场价: {result['entry_price']:.4f}")
+        print(f"止损位: {result['stop_loss']:.4f}")
+        print(f"止盈位: {result['take_profit']:.4f}")
+        print(f"\n推理: {result['reasoning']}")
+    else:
+        # 分析所有货币对
+        loader = FXDataLoader()
+        all_data = loader.load_all_pairs(args.data_file)
+
+        model = FXTradingModel(MODEL_CONFIG)
+
+        print(f"\n=== 所有货币对综合分析 ===")
+        print(f"分析日期: {args.date or pd.Timestamp.now().strftime('%Y-%m-%d')}\n")
+
+        for pair, df in all_data.items():
+            try:
+                ml_prediction = model.predict(pair, df)
+                result = analyzer.analyze_pair(pair, df, ml_prediction)
+
+                print(f"--- {pair} ---")
+                print(f"建议: {result['recommendation'].upper()} | "
+                      f"入场: {result['entry_price']:.4f} | "
+                      f"止损: {result['stop_loss']:.4f} | "
+                      f"止盈: {result['take_profit']:.4f}")
+                print(f"技术: {result['technical_signal']} ({result['technical_strength']:.0f}) | "
+                      f"ML: {'上涨' if result['ml_prediction'] == 1 else '下跌'} ({result['ml_probability']:.2f})")
+                print()
+            except Exception as e:
+                logger.error(f"分析货币对 {pair} 失败: {e}")
+                continue

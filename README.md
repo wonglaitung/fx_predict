@@ -40,19 +40,19 @@ cp .env.example .env
 ### 训练模型
 
 ```bash
-python3 ml_services/fx_trading_model.py --mode train --pair EUR --horizon 20
+python3 -m ml_services.fx_trading_model --mode train --pair EUR --horizon 20
 ```
 
 ### 生成预测
 
 ```bash
-python3 ml_services/fx_trading_model.py --mode predict --pair EUR
+python3 -m ml_services.fx_trading_model --mode predict --pair EUR
 ```
 
 ### 综合分析
 
 ```bash
-python3 comprehensive_analysis.py --date 2026-03-25
+python3 -m comprehensive_analysis --date 2026-03-25
 ```
 
 ## 测试

@@ -212,3 +212,49 @@ class FXTradingModel:
             'data_date': data_date.strftime('%Y-%m-%d'),
             'target_date': target_date.strftime('%Y-%m-%d')
         }
+
+
+if __name__ == "__main__":
+    import argparse
+    from data_services.excel_loader import FXDataLoader
+
+    parser = argparse.ArgumentParser(description="外汇交易模型训练和预测")
+    parser.add_argument('--mode', type=str, required=True, choices=['train', 'predict'], help='模式: train 或 predict')
+    parser.add_argument('--pair', type=str, required=True, help='货币对代码 (EUR, JPY, AUD, GBP, CAD, NZD)')
+    parser.add_argument('--horizon', type=int, default=20, help='预测周期（天数）')
+    parser.add_argument('--data_file', type=str, default='FXRate_20260320.xlsx', help='数据文件路径')
+
+    args = parser.parse_args()
+
+    # 加载数据
+    loader = FXDataLoader()
+    df = loader.load_pair(args.pair, args.data_file)
+
+    if df is None or df.empty:
+        print(f"错误: 无法加载货币对 {args.pair} 的数据")
+        exit(1)
+
+    # 创建模型
+    from config import MODEL_CONFIG
+    model_config = MODEL_CONFIG.copy()
+    model_config['horizon'] = args.horizon
+    model = FXTradingModel(model_config)
+
+    if args.mode == 'train':
+        print(f"开始训练 {args.pair} 模型...")
+        metrics = model.train(args.pair, df)
+        print(f"训练完成:")
+        print(f"  准确率: {metrics['accuracy']:.2%}")
+        print(f"  特征数量: {metrics['feature_count']}")
+        print(f"  训练样本: {metrics['train_samples']}")
+        print(f"  验证样本: {metrics['val_samples']}")
+    elif args.mode == 'predict':
+        print(f"开始预测 {args.pair}...")
+        result = model.predict(args.pair, df)
+        print(f"预测完成:")
+        print(f"  当前价格: {result['current_price']:.4f}")
+        print(f"  预测: {'上涨' if result['prediction'] == 1 else '下跌'}")
+        print(f"  概率: {result['probability']:.2%}")
+        print(f"  置信度: {result['confidence']}")
+        print(f"  数据日期: {result['data_date']}")
+        print(f"  目标日期: {result['target_date']}")
