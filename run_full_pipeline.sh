@@ -82,8 +82,8 @@ print_usage() {
   # 使用 short 长度的大模型分析
   $0 --llm-length short
 
-  # 指定数据文件和预测周期
-  $0 --data-file FXRate_20260320.xlsx --horizon 10
+  # 指定数据文件
+  $0 --data_file FXRate_20260320.xlsx
 EOF
     exit 0
 }
@@ -166,7 +166,7 @@ analyze_all_pairs() {
     print_info "运行综合分析（6个货币对）..."
     
     if python3 -m comprehensive_analysis \
-        --data-file "$DATA_FILE" \
+        --data_file "$DATA_FILE" \
         $llm_args; then
         print_success "所有综合分析完成"
     else
