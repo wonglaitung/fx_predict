@@ -248,7 +248,7 @@ function renderIndicatorValueChart(indicators, pair) {
   });
   const datasets = [];
   
-  // RSI14
+  // RSI14 - 使用折线图显示
   if (indicators.momentum?.RSI14 !== undefined) {
     const baseRSI = indicators.momentum.RSI14;
     datasets.push({
@@ -257,12 +257,16 @@ function renderIndicatorValueChart(indicators, pair) {
         const variation = (Math.random() - 0.5) * 10;
         return Math.max(0, Math.min(100, baseRSI + variation));
       }),
-      backgroundColor: '#22c55e',
+      borderColor: '#22c55e',
+      backgroundColor: 'rgba(34, 197, 94, 0.1)',
+      type: 'line',
+      tension: 0.4,
+      pointRadius: 0,
       yAxisID: 'y'
     });
   }
   
-  // MACD
+  // MACD - 使用柱状图显示
   if (indicators.trend?.MACD !== undefined) {
     const baseMACD = indicators.trend.MACD;
     datasets.push({
@@ -276,7 +280,7 @@ function renderIndicatorValueChart(indicators, pair) {
     });
   }
   
-  // ATR14
+  // ATR14 - 使用柱状图显示
   if (indicators.volatility?.ATR14 !== undefined) {
     const baseATR = indicators.volatility.ATR14;
     datasets.push({
