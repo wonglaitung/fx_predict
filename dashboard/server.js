@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
+const { logInfo, logError, requestLogger, errorLogger } = require('./logger');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -15,6 +16,7 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(express.static('public'));
+app.use(requestLogger);
 
 // DataLoader class
 class DataLoader {
@@ -90,8 +92,10 @@ app.get('/health', (req, res) => {
 app.get('/api/v1/pairs', (req, res) => {
   try {
     const pairs = dataLoader.loadAllPairs();
+    logInfo(`Loaded ${pairs.length} pairs`);
     res.json({ pairs });
   } catch (error) {
+    logError(`Failed to load pairs: ${error.message}`);
     res.status(500).json({
       error: {
         code: 'INTERNAL_ERROR',
@@ -256,9 +260,13 @@ app.get('/api/v1/risk', (req, res) => {
   }
 });
 
+// Error handling middleware (must be last)
+app.use(errorLogger);
+
 // Start server
 if (require.main === module) {
   app.listen(PORT, () => {
+    logInfo(`Server started on port ${PORT}`);
     console.log(`Server running on port ${PORT}`);
   });
 }
