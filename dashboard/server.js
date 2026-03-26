@@ -90,7 +90,7 @@ class DataLoader {
             pair: data.metadata?.pair || pairCode,
             pair_name: data.metadata?.pair_name || `${pairCode}/USD`,
             current_price: data.metadata?.current_price,
-            last_update: data.metadata?.analysis_date || new Date().toISOString()
+            last_update: data.metadata?.data_date || new Date().toISOString()
           });
           seenPairs.add(pairCode);
         }
