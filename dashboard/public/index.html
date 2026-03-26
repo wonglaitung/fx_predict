@@ -71,16 +71,23 @@
 
     <!-- Technical Indicators Chart -->
     <section class="indicators-section">
-      <h2 class="section-title">技术指标</h2>
+      <h2 class="section-title">技术指标 - <span id="currentPair">EUR</span></h2>
+      <p class="section-description">显示当前选中货币对的技术指标（价格走势 + 均线、RSI、MACD、ATR）</p>
       <div class="charts-row">
         <div class="chart-container">
           <h3 class="chart-title">价格走势 + 均线</h3>
+          <p class="chart-description">
+            <span class="line-legend">白色线: 价格 | 蓝色: SMA5 | 绿色: SMA10 | 橙色: SMA20</span>
+          </p>
           <div class="chart-canvas-wrapper">
             <canvas id="priceChart"></canvas>
           </div>
         </div>
         <div class="chart-container">
           <h3 class="chart-title">技术指标数值</h3>
+          <p class="chart-description">
+            <span class="line-legend">绿色柱: RSI14 | 蓝色柱: MACD | 橙色柱: ATR14</span>
+          </p>
           <div class="chart-canvas-wrapper">
             <canvas id="indicatorChart"></canvas>
           </div>

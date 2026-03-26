@@ -111,15 +111,21 @@ async function renderIndicatorCharts(pair = 'EUR') {
     const data = await response.json();
     const indicators = data.indicators || {};
     
-    renderPriceChart(indicators);
-    renderIndicatorValueChart(indicators);
+    // Update current pair display
+    const pairElement = document.getElementById('currentPair');
+    if (pairElement) {
+      pairElement.textContent = pair;
+    }
+    
+    renderPriceChart(indicators, pair);
+    renderIndicatorValueChart(indicators, pair);
   } catch (error) {
     console.error('Failed to load indicators:', error);
   }
 }
 
 // Render price chart with moving averages
-function renderPriceChart(indicators) {
+function renderPriceChart(indicators, pair) {
   const ctx = document.getElementById('priceChart');
   if (!ctx) return;
   
@@ -139,7 +145,7 @@ function renderPriceChart(indicators) {
   // Generate realistic trend data based on current values
   const datasets = [
     {
-      label: 'Price',
+      label: `${pair} Price`,
       data: generateTrendData(sma20, 30, 0.01).map(v => v.toFixed(4)),
       borderColor: '#f1f5f9',
       backgroundColor: 'rgba(241, 245, 249, 0.1)',
@@ -213,7 +219,7 @@ function renderPriceChart(indicators) {
 }
 
 // Render indicator values chart
-function renderIndicatorValueChart(indicators) {
+function renderIndicatorValueChart(indicators, pair) {
   const ctx = document.getElementById('indicatorChart');
   if (!ctx) return;
   

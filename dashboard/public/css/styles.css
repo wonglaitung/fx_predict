@@ -104,6 +104,13 @@ body {
   color: var(--text-primary);
 }
 
+.section-title span#currentPair {
+  color: var(--color-info);
+  font-size: 1rem;
+  font-weight: 500;
+  margin-left: 0.5rem;
+}
+
 /* Overview Cards */
 .overview-section {
   margin-bottom: 2rem;
@@ -210,23 +217,44 @@ body {
   margin-bottom: 2rem;
 }
 
+/* Chart containers */
 .chart-container {
   background-color: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: 0.75rem;
   padding: 1.5rem;
   height: 400px;
+  display: flex;
+  flex-direction: column;
 }
 
 .chart-title {
   font-size: 1rem;
   font-weight: 600;
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
   color: var(--text-secondary);
 }
 
+.chart-description {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+}
+
+.line-legend {
+  font-size: 0.875rem;
+}
+
+.section-description {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin-bottom: 1rem;
+  font-style: italic;
+}
+
 .chart-canvas-wrapper {
-  height: calc(100% - 2rem);
+  flex: 1;
+  min-height: 0;
 }
 
 /* Risk Warnings */
