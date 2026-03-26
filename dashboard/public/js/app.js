@@ -39,9 +39,11 @@ async function refreshData() {
     renderConsistencyChart(consistencyData.consistency);
     renderRiskWarnings(riskData.risks);
     
-    // Update last update time
-    const now = new Date();
-    document.getElementById('lastUpdate').textContent = `Last: ${now.toLocaleTimeString()}`;
+    // Update last update time (use data date, not current time)
+    if (pairsData.pairs && pairsData.pairs.length > 0) {
+      const dataDate = pairsData.pairs[0].last_update;
+      document.getElementById('lastUpdate').textContent = `Last: ${dataDate}`;
+    }
     
   } catch (error) {
     console.error('Error refreshing data:', error);
