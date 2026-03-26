@@ -1,0 +1,4 @@
+export QWEN_API_KEY=sk-ccxxxxxxxx
+echo $QWEN_API_KEY
+
+

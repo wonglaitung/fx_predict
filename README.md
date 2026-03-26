@@ -88,7 +88,23 @@ ML 预测结果 → LLM 双重验证 → 生成综合建议 + 完整分析报告
 pip install -r requirements.txt
 ```
 
-### 配置环境变量（可选）
+### 配置环境变量
+
+有两种方式配置通义千问 API 密钥：
+
+**方式 1：使用 set_key.sh（推荐）**
+
+复制 `set_key.sh.example` 为 `set_key.sh`，然后编辑填入你的 API 密钥：
+
+```bash
+cp set_key.sh.example set_key.sh
+# 编辑 set_key.sh 文件，填入你的 QWEN_API_KEY
+
+# 运行预测时使用以下命令（推荐）：
+source set_key.sh && ./run_full_pipeline.sh
+```
+
+**方式 2：使用 .env 文件**
 
 复制 `.env.example` 为 `.env` 并填入通义千问 API 密钥：
 
