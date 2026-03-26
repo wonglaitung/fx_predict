@@ -34,7 +34,7 @@
 Excel 数据
     │
     ▼
-技术指标引擎 → 35个技术指标
+技术指标引擎 → 36个技术指标
     │
     ├──────────────┐
     ▼              ▼
@@ -77,7 +77,7 @@ Excel 数据
         5: HorizonPrediction,       # 5 天预测结果
         20: HorizonPrediction       # 20 天预测结果
     },
-    'technical_indicators': {       # 完整技术指标（35个）
+    'technical_indicators': {       # 完整技术指标（36个）
         'trend': {...},             # 趋势类指标（16个）
         'momentum': {...},          # 动量类指标（6个）
         'volatility': {...},        # 波动类指标（6个）
@@ -327,7 +327,7 @@ Excel 数据
 **输出**：MultiHorizonContext 对象
 
 **功能**：
-1. 计算所有技术指标（35个）
+1. 计算所有技术指标（36个）
 2. 调用三个周期的 ML 模型进行预测
 3. 验证预测结果的一致性
 4. 计算一致性评分
@@ -523,41 +523,6 @@ class TradingStrategyGenerator:
     def _determine_position_size(self, confidence: str, 
                                    risk_level: str) -> str:
         """确定仓位大小"""
-        pass
-```
-
-#### 3.1.5 JSONFormatter
-
-**职责**：格式化输出为标准 JSON 格式
-
-**输入**：
-- MultiHorizonContext 对象
-- LLMAnalysisResult 对象
-- 交易方案字典
-
-**输出**：标准 JSON 字符串
-
-**功能**：
-1. 构建完整的 JSON 输出结构
-2. 验证 JSON 格式正确性
-3. 写入文件或返回字符串
-4. 验证所有必需字段
-
-**关键方法**：
-```python
-class JSONFormatter:
-    def format(self, context: MultiHorizonContext,
-               llm_result: LLMAnalysisResult,
-               strategies: dict) -> str:
-        """格式化输出为 JSON"""
-        pass
-    
-    def write_to_file(self, json_str: str, pair: str) -> str:
-        """写入 JSON 文件"""
-        pass
-    
-    def validate_schema(self, data: dict) -> bool:
-        """验证 JSON Schema"""
         pass
 ```
 
