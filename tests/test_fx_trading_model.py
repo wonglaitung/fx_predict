@@ -151,3 +151,25 @@ def test_hard_constraint_no_buy_when_low_probability():
     if prediction['probability'] <= 0.50:
         assert prediction['prediction'] == 0, "ML probability ≤ 0.50 时绝对禁止买入"
         assert prediction['confidence'] == 'low'
+
+
+def test_predict_horizon():
+    """测试单个周期预测"""
+    from data_services.excel_loader import FXDataLoader
+
+    model = FXTradingModel()
+    loader = FXDataLoader()
+
+    # 加载测试数据
+    data = loader.load_pair('EUR', 'FXRate_20260320.xlsx')
+
+    # 预测 1 天周期
+    result = model.predict_horizon('EUR', data, 1)
+
+    # 验证结果
+    assert 'horizon' in result
+    assert result['horizon'] == 1
+    assert 'prediction' in result
+    assert 'probability' in result
+    assert 'confidence' in result
+    assert 'target_date' in result
