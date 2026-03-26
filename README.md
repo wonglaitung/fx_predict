@@ -149,15 +149,12 @@ cp .env.example .env
 
 #### 3. 准备数据
 
-确保数据文件 `FXRate_20260320.xlsx` 位于项目根目录。数据文件必须满足：
+数据文件 `FXRate_20260320.xlsx` 需要满足以下要求：
 - 工作表名称为货币对代码（如 EUR、JPY）
 - 包含 `Date` 和 `Close` 列
 - 日期格式：MM/DD/YYYY
 
-**数据文件配置优先级**：
-1. **命令行参数**（最高优先级）：`./run_full_pipeline.sh --data-file XXX.xlsx`
-2. **环境变量**（中等优先级）：在 `.env` 文件中配置 `DATA_FILE=XXX.xlsx`
-3. **配置文件默认值**（最低优先级）：`config.py` 中的默认值 `FXRate_20260320.xlsx`
+如需使用其他数据文件，可通过命令行参数指定：`./run_full_pipeline.sh --data-file XXX.xlsx`
 
 #### 4. 运行完整流程（生成预测数据）
 
