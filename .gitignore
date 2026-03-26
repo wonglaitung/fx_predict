@@ -25,4 +25,10 @@ set_key.sh
 
 # OS
 .DS_Store
-Thumbs.dbdata/predictions/
+Thumbs.db
+
+# Git worktrees
+.worktrees/
+
+# Predictions data
+data/predictions/
