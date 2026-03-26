@@ -526,6 +526,41 @@ class TradingStrategyGenerator:
         pass
 ```
 
+#### 3.1.5 JSONFormatter
+
+**职责**：格式化输出为标准 JSON 格式
+
+**输入**：
+- MultiHorizonContext 对象
+- LLMAnalysisResult 对象
+- 交易方案字典
+
+**输出**：标准 JSON 字符串
+
+**功能**：
+1. 构建完整的 JSON 输出结构
+2. 验证 JSON 格式正确性
+3. 写入文件或返回字符串
+4. 验证所有必需字段
+
+**关键方法**：
+```python
+class JSONFormatter:
+    def format(self, context: MultiHorizonContext,
+               llm_result: LLMAnalysisResult,
+               strategies: dict) -> str:
+        """格式化输出为 JSON"""
+        pass
+    
+    def write_to_file(self, json_str: str, pair: str) -> str:
+        """写入 JSON 文件"""
+        pass
+    
+    def validate_schema(self, data: dict) -> bool:
+        """验证 JSON Schema"""
+        pass
+```
+
 ### 3.2 重构模块
 
 #### 3.2.1 FXTradingModel
@@ -600,9 +635,27 @@ class ComprehensiveAnalyzer:
 - 简化：参数列表，减少用户选择负担
 
 **向后兼容说明**：
-- 当前代码中的 `--horizon` 参数将被移除
-- 用户无需指定周期，系统自动使用三个周期（1天、5天、20天）
-- 训练和预测默认处理所有三个周期
+
+1. **移除的参数**：
+   - `--horizon`：系统默认使用三个周期（1天、5天、20天）
+   - `--all-horizons`：这是默认行为，无需显式指定
+
+2. **用户迁移指南**：
+   - 旧命令：`python3 -m ml_services.fx_trading_model --mode train --pair EUR --horizon 20`
+   - 新命令：`python3 -m ml_services.fx_trading_model --mode train --pair EUR`
+   
+   - 旧命令：`python3 -m comprehensive_analysis --pair EUR --all-horizons`
+   - 新命令：`python3 -m comprehensive_analysis --pair EUR`
+
+3. **自动处理**：
+   - 系统自动训练和预测所有三个周期
+   - 无需用户指定周期参数
+   - 减少用户学习成本
+
+4. **历史脚本处理**：
+   - 如果用户的脚本中使用了 `--horizon` 参数，将收到错误提示
+   - 错误信息将指导用户移除该参数
+   - 提供迁移命令示例
 
 **变更后的参数**：
 ```bash
@@ -1526,7 +1579,7 @@ python3 -m ml_services.fx_trading_model --mode predict --pair EUR
 
 ## 13. 附录
 
-### 13.1 技术指标清单（35 个）
+### 13.1 技术指标清单（36 个）
 
 **趋势类指标（16 个）**：
 - SMA5, SMA10, SMA20, SMA50, SMA120 (5个)
@@ -1544,7 +1597,7 @@ python3 -m ml_services.fx_trading_model --mode predict --pair EUR
 **成交量类指标（1 个）**：
 - OBV
 
-**价格形态指标（4 个）**：
+**价格形态指标（5 个）**：
 - Price_Percentile_120, Bias_5, Bias_10, Bias_20
 - Trend_Slope_20
 
