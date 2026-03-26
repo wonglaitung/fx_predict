@@ -8,14 +8,30 @@ function renderOverviewCards(pairs) {
   pairs.forEach(pair => {
     const card = document.createElement('div');
     card.className = 'card';
+    
+    // Determine prediction icon and class
+    let icon = '→';
+    let iconClass = 'prediction-neutral';
+    
+    if (pair.prediction === '上涨' || pair.prediction === 'buy') {
+      icon = '↗';
+      iconClass = 'prediction-up';
+    } else if (pair.prediction === '下跌' || pair.prediction === 'sell') {
+      icon = '↘';
+      iconClass = 'prediction-down';
+    }
+    
+    // Format probability as percentage
+    const probabilityPercent = (pair.probability * 100).toFixed(1) + '%';
+    
     card.innerHTML = `
       <div class="card-title">${pair.pair_name}</div>
       <div class="card-price">${pair.current_price.toFixed(4)}</div>
       <div class="card-prediction">
-        <span class="prediction-icon">→</span>
-        <span>等待数据...</span>
+        <span class="prediction-icon ${iconClass}">${icon}</span>
+        <span>${pair.prediction}</span>
       </div>
-      <div class="card-probability">Last: ${new Date(pair.last_update).toLocaleDateString()}</div>
+      <div class="card-probability">${probabilityPercent} (${pair.confidence})</div>
     `;
     container.appendChild(card);
   });

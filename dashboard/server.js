@@ -86,11 +86,18 @@ class DataLoader {
         if (validPairs.includes(pairCode) && !seenPairs.has(pairCode)) {
           const filePath = path.join(this.dataDir, file);
           const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+          
+          // Get the 5-day prediction as the main prediction for overview
+          const mainPrediction = data.ml_predictions?.['5_day'] || data.ml_predictions?.['1_day'] || {};
+          
           pairs.push({
             pair: data.metadata?.pair || pairCode,
             pair_name: data.metadata?.pair_name || `${pairCode}/USD`,
             current_price: data.metadata?.current_price,
-            last_update: data.metadata?.data_date || new Date().toISOString()
+            last_update: data.metadata?.data_date || new Date().toISOString(),
+            prediction: mainPrediction.prediction_text || 'hold',
+            probability: mainPrediction.probability || 0.5,
+            confidence: mainPrediction.confidence || 'unknown'
           });
           seenPairs.add(pairCode);
         }
