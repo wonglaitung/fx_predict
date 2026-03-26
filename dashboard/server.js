@@ -290,13 +290,8 @@ app.get('/api/v1/indicators/:pair', (req, res) => {
     const { pair } = req.params;
     const data = dataLoader.loadPair(pair);
     
-    // Map indicator names from Chinese to English if needed
-    const indicators = {};
-    if (data.llm_analysis && data.llm_analysis.horizon_analysis) {
-      data.llm_analysis.horizon_analysis.forEach(ha => {
-        indicators[ha.horizon] = ha.technical_indicators || {};
-      });
-    }
+    // Return technical indicators directly from the data
+    const indicators = data.technical_indicators || {};
     
     res.json({ pair, indicators });
   } catch (error) {

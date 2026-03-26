@@ -39,6 +39,11 @@ async function refreshData() {
     renderConsistencyChart(consistencyData.consistency);
     renderRiskWarnings(riskData.risks);
     
+    // Render indicator charts for first pair
+    if (pairsData.pairs && pairsData.pairs.length > 0) {
+      renderIndicatorCharts(pairsData.pairs[0].pair);
+    }
+    
     // Update last update time (use data date, not current time)
     if (pairsData.pairs && pairsData.pairs.length > 0) {
       const dataDate = pairsData.pairs[0].last_update;
