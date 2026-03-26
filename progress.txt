@@ -191,3 +191,16 @@
   - **标准 JSON 输出格式**：包含 metadata, ml_predictions, consistency_analysis, llm_analysis, trading_strategies, technical_indicators, risk_analysis
   - **测试覆盖率**：77%（新模块覆盖率 98-100%）
   - **JSON Schema 验证**：所有必需部分验证通过
+
+- 日期：2026-03-26（第四次更新 - 修复日期显示问题）
+- 更新者：iFlow CLI
+- 更新内容：
+  - **修复日期显示问题**：系统现在使用数据文件 Date 列中的日期而不是当前日期
+  - **修改 4 个方法**：
+    - fx_trading_model.py: predict(), predict_horizon(), _get_default_prediction()
+    - multi_horizon_context.py: build(), _get_default_prediction()
+  - **修复逻辑**：优先使用 Date 列中的日期，只有当 Date 列不存在时才使用当前日期
+  - **问题背景**：数据索引是整数索引（RangeIndex），导致系统误以为没有日期信息而使用当前日期
+  - **修复效果**：数据日期从 2026-03-26（当前日期）改为 2026-03-20（数据文件实际日期）
+  - **测试验证**：所有 110 个测试通过，日期显示正确
+  - **提交并推送**：修复已提交到本地仓库并推送到远程仓库
