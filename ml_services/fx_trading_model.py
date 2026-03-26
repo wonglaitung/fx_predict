@@ -201,7 +201,13 @@ class FXTradingModel:
 
         # 获取当前价格和目标日期
         current_price = data['Close'].iloc[-1]
-        data_date = data.index[-1] if hasattr(data.index, 'to_pydatetime') else datetime.now()
+        # 优先使用 Date 列中的日期，如果不存在则使用当前日期
+        if 'Date' in data.columns:
+            data_date = data['Date'].iloc[-1]
+        elif hasattr(data.index, 'to_pydatetime'):
+            data_date = data.index[-1]
+        else:
+            data_date = datetime.now()
         target_date = data_date + timedelta(days=self.horizon)
 
         result = {
@@ -263,7 +269,13 @@ class FXTradingModel:
 
         # 获取当前价格和目标日期
         current_price = data['Close'].iloc[-1]
-        data_date = data.index[-1] if hasattr(data.index, 'to_pydatetime') else datetime.now()
+        # 优先使用 Date 列中的日期，如果不存在则使用当前日期
+        if 'Date' in data.columns:
+            data_date = data['Date'].iloc[-1]
+        elif hasattr(data.index, 'to_pydatetime'):
+            data_date = data.index[-1]
+        else:
+            data_date = datetime.now()
         target_date = data_date + timedelta(days=horizon)
 
         result = {
@@ -281,7 +293,11 @@ class FXTradingModel:
     def _get_default_prediction(self, horizon: int, data: pd.DataFrame) -> dict:
         """获取默认预测（当模型不可用时）"""
         current_price = data['Close'].iloc[-1]
-        data_date = datetime.now()
+        # 优先使用 Date 列中的日期
+        if 'Date' in data.columns:
+            data_date = data['Date'].iloc[-1]
+        else:
+            data_date = datetime.now()
         target_date = data_date + timedelta(days=horizon)
 
         return {

@@ -54,10 +54,18 @@ class MultiHorizonContextBuilder:
 
         # 4. 构建上下文
         latest = data.iloc[-1]
+        # 优先使用 Date 列中的日期
+        if 'Date' in latest:
+            data_date_str = latest['Date'].strftime('%Y-%m-%d')
+        elif hasattr(latest.name, 'strftime'):
+            data_date_str = latest.name.strftime('%Y-%m-%d')
+        else:
+            data_date_str = datetime.now().strftime('%Y-%m-%d')
+        
         context = {
             'pair': pair,
             'current_price': float(latest['Close']),
-            'data_date': latest['Date'].strftime('%Y-%m-%d') if 'Date' in latest else (latest.name.strftime('%Y-%m-%d') if hasattr(latest.name, 'strftime') else datetime.now().strftime('%Y-%m-%d')),
+            'data_date': data_date_str,
             'predictions': predictions,
             'technical_indicators': self._organize_indicators(data),
             'consistency_analysis': consistency_analysis
@@ -69,7 +77,11 @@ class MultiHorizonContextBuilder:
     def _get_default_prediction(self, horizon: int, data: pd.DataFrame) -> Dict[str, Any]:
         """获取默认预测"""
         current_price = data['Close'].iloc[-1]
-        data_date = datetime.now()
+        # 优先使用 Date 列中的日期
+        if 'Date' in data.columns:
+            data_date = data['Date'].iloc[-1]
+        else:
+            data_date = datetime.now()
         target_date = data_date + timedelta(days=horizon)
 
         return {
