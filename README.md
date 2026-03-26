@@ -154,6 +154,11 @@ cp .env.example .env
 - 包含 `Date` 和 `Close` 列
 - 日期格式：MM/DD/YYYY
 
+**数据文件配置优先级**：
+1. **命令行参数**（最高优先级）：`./run_full_pipeline.sh --data-file XXX.xlsx`
+2. **环境变量**（中等优先级）：在 `.env` 文件中配置 `DATA_FILE=XXX.xlsx`
+3. **配置文件默认值**（最低优先级）：`config.py` 中的默认值 `FXRate_20260320.xlsx`
+
 #### 4. 运行完整流程（生成预测数据）
 
 ```bash
