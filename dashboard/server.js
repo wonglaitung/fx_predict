@@ -70,16 +70,20 @@ class DataLoader {
   }
 
   loadAllPairs() {
-    const pairs = [];
     const validPairs = ['EUR', 'JPY', 'AUD', 'GBP', 'CAD', 'NZD'];
+    const pairs = [];
+    const seenPairs = new Set();
 
     try {
       const files = fs.readdirSync(this.dataDir)
         .filter(f => f.endsWith('.json'));
 
+      // Sort files to get the latest one for each pair
+      files.sort().reverse();
+
       files.forEach(file => {
         const pairCode = file.split('_')[0];
-        if (validPairs.includes(pairCode)) {
+        if (validPairs.includes(pairCode) && !seenPairs.has(pairCode)) {
           const filePath = path.join(this.dataDir, file);
           const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
           pairs.push({
@@ -88,6 +92,7 @@ class DataLoader {
             current_price: data.metadata?.current_price,
             last_update: data.metadata?.analysis_date || new Date().toISOString()
           });
+          seenPairs.add(pairCode);
         }
       });
     } catch (error) {
@@ -207,7 +212,29 @@ app.get('/api/v1/strategies', (req, res) => {
     pairs.forEach(pair => {
       try {
         const data = dataLoader.loadPair(pair.pair);
-        strategies[pair.pair] = data.trading_strategies || [];
+        // Convert strategy object to array format
+        const strategyObj = data.trading_strategies || {};
+        const strategyArray = [
+          { 
+            ...strategyObj.short_term, 
+            horizon: 1, 
+            horizon_name: 'short_term',
+            direction: strategyObj.short_term?.recommendation || 'hold'
+          },
+          { 
+            ...strategyObj.medium_term, 
+            horizon: 5, 
+            horizon_name: 'medium_term',
+            direction: strategyObj.medium_term?.recommendation || 'hold'
+          },
+          { 
+            ...strategyObj.long_term, 
+            horizon: 20, 
+            horizon_name: 'long_term',
+            direction: strategyObj.long_term?.recommendation || 'hold'
+          }
+        ].filter(s => s.name); // Filter out empty strategies
+        strategies[pair.pair] = strategyArray;
       } catch (error) {
         strategies[pair.pair] = [];
       }
