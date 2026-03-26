@@ -134,6 +134,128 @@ app.get('/api/v1/pairs/:pair', (req, res) => {
   }
 });
 
+// Get all trading strategies
+app.get('/api/v1/strategies', (req, res) => {
+  try {
+    const pairs = dataLoader.loadAllPairs();
+    const strategies = {};
+
+    pairs.forEach(pair => {
+      try {
+        const data = dataLoader.loadPair(pair.pair);
+        strategies[pair.pair] = data.trading_strategies || [];
+      } catch (error) {
+        strategies[pair.pair] = [];
+      }
+    });
+
+    res.json({ strategies });
+  } catch (error) {
+    res.status(500).json({
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to load strategies'
+      }
+    });
+  }
+});
+
+// Get consistency analysis
+app.get('/api/v1/consistency', (req, res) => {
+  try {
+    const pairs = dataLoader.loadAllPairs();
+    const consistency = {};
+
+    pairs.forEach(pair => {
+      try {
+        const data = dataLoader.loadPair(pair.pair);
+        consistency[pair.pair] = data.consistency_analysis || {};
+      } catch (error) {
+        consistency[pair.pair] = {};
+      }
+    });
+
+    res.json({ consistency });
+  } catch (error) {
+    res.status(500).json({
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to load consistency analysis'
+      }
+    });
+  }
+});
+
+// Get technical indicators for a specific pair
+app.get('/api/v1/indicators/:pair', (req, res) => {
+  try {
+    const { pair } = req.params;
+    const data = dataLoader.loadPair(pair);
+    
+    // Map indicator names from Chinese to English if needed
+    const indicators = {};
+    if (data.llm_analysis && data.llm_analysis.horizon_analysis) {
+      data.llm_analysis.horizon_analysis.forEach(ha => {
+        indicators[ha.horizon] = ha.technical_indicators || {};
+      });
+    }
+    
+    res.json({ pair, indicators });
+  } catch (error) {
+    if (error.message.includes('Invalid pair code')) {
+      res.status(400).json({
+        error: {
+          code: 'INVALID_REQUEST',
+          message: '货币对代码无效'
+        }
+      });
+    } else if (error.message.includes('No data found')) {
+      res.status(404).json({
+        error: {
+          code: 'NOT_FOUND',
+          message: '数据未找到'
+        }
+      });
+    } else {
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to load indicators'
+        }
+      });
+    }
+  }
+});
+
+// Get risk analysis
+app.get('/api/v1/risk', (req, res) => {
+  try {
+    const pairs = dataLoader.loadAllPairs();
+    const risks = {};
+
+    pairs.forEach(pair => {
+      try {
+        const data = dataLoader.loadPair(pair.pair);
+        risks[pair.pair] = {
+          warnings: data.risk_analysis?.warnings || [],
+          risk_level: data.risk_analysis?.risk_level || 'unknown'
+        };
+      } catch (error) {
+        risks[pair.pair] = { warnings: [], risk_level: 'unknown' };
+      }
+    });
+
+    res.json({ risks });
+  } catch (error) {
+    res.status(500).json({
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to load risk analysis'
+      }
+    });
+  }
+});
+
 // Start server
 if (require.main === module) {
   app.listen(PORT, () => {
