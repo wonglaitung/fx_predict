@@ -7,17 +7,27 @@ import time
 from data_services.technical_analysis import TechnicalAnalyzer
 from ml_services.fx_trading_model import FXTradingModel
 from llm_services.qwen_engine import chat_with_llm
+from ml_services.multi_horizon_context import MultiHorizonContextBuilder
+from ml_services.multi_horizon_prompt import MultiHorizonPromptBuilder
+from ml_services.llm_parser import LLMAnalysisParser
+from ml_services.strategy_generator import TradingStrategyGenerator
+from ml_services.json_formatter import JSONFormatter
 
 logger = logging.getLogger(__name__)
 
 
 class ComprehensiveAnalyzer:
-    """综合分析器"""
+    """综合分析器 - 支持多周期分析"""
 
     def __init__(self):
         self.logger = logger
         self.technical_analyzer = TechnicalAnalyzer()
         self.model = FXTradingModel()
+        self.context_builder = MultiHorizonContextBuilder()
+        self.prompt_builder = MultiHorizonPromptBuilder()
+        self.llm_parser = LLMAnalysisParser()
+        self.strategy_generator = TradingStrategyGenerator()
+        self.json_formatter = JSONFormatter()
 
     def generate_llm_analysis(self,
                              pair: str,
@@ -243,31 +253,86 @@ ML 预测：{'上涨' if ml_pred == 1 else '下跌'}，概率 {ml_prob:.2%}，�
     def analyze_pair(self,
                     pair: str,
                     data: pd.DataFrame,
-                    ml_prediction: Dict[str, Any],
-                    use_llm: bool = True,
-                    llm_length: str = 'long') -> Dict[str, Any]:
+                    use_llm: bool = True) -> Dict[str, Any]:
         """
-        分析单个货币对
-        """
-        # 1. 生成技术信号
-        technical_signal = self._generate_technical_signal(data)
+        分析单个货币对 - 使用多周期工作流
 
-        # 2. 如果启用 LLM，调用 LLM 分析
-        llm_result = None
+        Args:
+            pair: 货币对代码
+            data: 原始数据
+            use_llm: 是否使用大模型分析
+
+        Returns:
+            分析结果字典
+        """
+        # 1. 构建多周期上下文
+        context = self.context_builder.build(pair, data)
+
+        # 2. 调用 LLM 分析或规则引擎
         if use_llm:
-            llm_result = self.generate_llm_analysis(pair, data, ml_prediction, llm_length)
+            try:
+                # 构建 Prompt
+                prompt = self.prompt_builder.build(context)
 
-        # 3. 验证信号（应用硬性约束）
-        validated_signal = self._validate_signals(
-            technical_signal, ml_prediction
-        )
+                # 调用 LLM
+                start_time = time.time()
+                llm_response = chat_with_llm(prompt)
+                elapsed = time.time() - start_time
+                self.logger.info(f"LLM 调用耗时: {elapsed:.2f} 秒")
 
-        # 4. 生成综合建议
-        recommendation = self._generate_recommendation(
-            pair, data, technical_signal, ml_prediction, validated_signal, llm_result
-        )
+                # 解析 LLM 输出
+                llm_result = self.llm_parser.parse(llm_response)
+            except Exception as e:
+                self.logger.warning(f"LLM 分析失败，使用规则引擎: {e}")
+                llm_result = self._use_rule_engine(context)
+        else:
+            llm_result = self._use_rule_engine(context)
 
-        return recommendation
+        # 3. 生成交易方案
+        strategies = self.strategy_generator.generate(llm_result, context)
+
+        # 4. 格式化为 JSON
+        json_str = self.json_formatter.format(context, llm_result, strategies)
+
+        # 5. 写入文件
+        json_file = self.json_formatter.write_to_file(json_str, pair)
+
+        # 6. 返回解析后的结果
+        result = json.loads(json_str)
+        result['json_file'] = json_file
+
+        return result
+
+    def _use_rule_engine(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        使用规则引擎作为 LLM 的后备方案
+
+        Args:
+            context: 多周期上下文
+
+        Returns:
+            规则引擎生成的分析结果
+        """
+        majority_trend = context['consistency_analysis']['majority_trend']
+        if majority_trend == '上涨':
+            recommendation = 'buy'
+        elif majority_trend == '下跌':
+            recommendation = 'sell'
+        else:
+            recommendation = 'hold'
+
+        key_points = [f"{majority_trend}趋势", f"ML预测{majority_trend}", "一致性评分较低"]
+
+        return {
+            'summary': f"{context['pair']} {majority_trend}趋势，建议{recommendation}",
+            'overall_assessment': '中性',
+            'key_factors': [f"{majority_trend}趋势", "ML预测"],
+            'horizon_analysis': {
+                '1': {'recommendation': recommendation, 'confidence': 'medium', 'analysis': f'规则引擎：{majority_trend}趋势', 'key_points': key_points[:2]},
+                '5': {'recommendation': recommendation, 'confidence': 'medium', 'analysis': f'规则引擎：{majority_trend}趋势', 'key_points': key_points[:2]},
+                '20': {'recommendation': recommendation, 'confidence': 'medium', 'analysis': f'规则引擎：{majority_trend}趋势', 'key_points': key_points[:2]}
+            }
+        }
 
     def _generate_technical_signal(self, data: pd.DataFrame) -> Dict[str, Any]:
         """生成技术信号"""
@@ -402,26 +467,18 @@ ML 预测：{'上涨' if ml_pred == 1 else '下跌'}，概率 {ml_prob:.2%}，�
 if __name__ == "__main__":
     import argparse
     from data_services.excel_loader import FXDataLoader
-    from ml_services.fx_trading_model import FXTradingModel
-    from config import MODEL_CONFIG
+    from config import DATA_CONFIG
 
-    parser = argparse.ArgumentParser(description="外汇综合分析")
-    parser.add_argument('--date', type=str, default=None, help='分析日期（YYYY-MM-DD）')
+    parser = argparse.ArgumentParser(description="外汇多周期综合分析")
     parser.add_argument('--pair', type=str, help='货币对代码（如 EUR、JPY 等）')
-    parser.add_argument('--data_file', type=str, default='FXRate_20260320.xlsx', help='数据文件路径')
+    parser.add_argument('--data_file', type=str, default=DATA_CONFIG['data_file'], help='数据文件路径')
     parser.add_argument('--no-llm', action='store_true',
                        help='禁用大模型分析（默认启用）')
-    parser.add_argument('--llm-length', type=str,
-                       choices=['short', 'medium', 'long'],
-                       default='long',
-                       help='大模型分析长度（默认: long）')
 
     args = parser.parse_args()
 
     analyzer = ComprehensiveAnalyzer()
-
     use_llm = not args.no_llm
-    llm_length = args.llm_length
 
     if args.pair:
         loader = FXDataLoader()
@@ -431,62 +488,96 @@ if __name__ == "__main__":
             print(f"错误: 无法加载货币对 {args.pair} 的数据")
             exit(1)
 
-        model = FXTradingModel(MODEL_CONFIG)
-        ml_prediction = model.predict(args.pair, df)
-        result = analyzer.analyze_pair(pair, df, ml_prediction,
-                                       use_llm=use_llm,
-                                       llm_length=llm_length)
+        # 使用新的多周期分析工作流
+        result = analyzer.analyze_pair(args.pair, df, use_llm=use_llm)
 
-        print(f"\n=== {args.pair} 综合分析 ===")
-        print(f"技术信号: {result['technical_signal']} (强度: {result['technical_strength']:.0f})")
-        print(f"ML预测: {'上涨' if result['ml_prediction'] == 1 else '下跌'} (概率: {result['ml_probability']:.2f})")
-        print(f"置信度: {result['ml_confidence']}")
-        print(f"一致性: {'是' if result['consistency'] else '否'}")
-        print(f"\n建议: {result['final_recommendation']}")
-        print(f"入场价: {result['entry_price']:.4f}")
-        print(f"止损位: {result['stop_loss']:.4f}")
-        print(f"止盈位: {result['take_profit']:.4f}")
-        print(f"\n推理: {result['reasoning']}")
-        
-        if use_llm and 'llm_report' in result and result['llm_report']:
-            print(f"\n【大模型分析报告】\n")
-            print(result['llm_report'])
-            print(f"\n关键因素：{', '.join(result['key_factors'] or [])}")
+        # 显示结果
+        print(f"\n{'='*70}")
+        print(f"{result['metadata']['pair_name']} 多周期综合分析")
+        print(f"{'='*70}\n")
+
+        print(f"【基本信息】")
+        print(f"当前价格: {result['metadata']['current_price']:.4f}")
+        print(f"数据日期: {result['metadata']['data_date']}")
+        print(f"分析日期: {result['metadata']['analysis_date']}")
+        print(f"分析周期: 1天、5天、20天\n")
+
+        print(f"【ML 预测结果】")
+        for horizon_key, pred in result['ml_predictions'].items():
+            print(f"  {horizon_key.replace('_', ' ')}: {pred['prediction_text']} "
+                  f"(概率: {pred['probability']:.2%}, 置信度: {pred['confidence']})")
+
+        print(f"\n【预测一致性分析】")
+        print(f"  一致性评分: {result['consistency_analysis']['score']:.2f}")
+        print(f"  解读: {result['consistency_analysis']['interpretation']}")
+        print(f"  多数趋势: {result['consistency_analysis']['majority_trend']}\n")
+
+        print(f"【LLM 综合分析】")
+        print(f"  摘要: {result['llm_analysis']['summary']}")
+        print(f"  整体评估: {result['llm_analysis']['overall_assessment']}")
+        print(f"  关键因素: {', '.join(result['llm_analysis']['key_factors'])}\n")
+
+        print(f"【各周期建议】")
+        horizon_names = {'1': '短线（1天）', '5': '中线（5天）', '20': '长线（20天）'}
+        for horizon, analysis in result['llm_analysis']['horizon_analysis'].items():
+            print(f"  {horizon_names.get(horizon, horizon)}:")
+            print(f"    建议: {analysis['recommendation']} (置信度: {analysis['confidence']})")
+            print(f"    分析: {analysis['analysis']}")
+            print(f"    关键点: {', '.join(analysis['key_points'])}")
+            print()
+
+        print(f"【交易策略】")
+        for strategy_key, strategy in result['trading_strategies'].items():
+            print(f"  {strategy['name']}:")
+            print(f"    建议: {strategy['recommendation']}")
+            print(f"    入场价: {strategy['entry_price']:.4f}")
+            print(f"    止损位: {strategy['stop_loss']:.4f}")
+            print(f"    止盈位: {strategy['take_profit']:.4f}")
+            print(f"    风险回报比: {strategy['risk_reward_ratio']:.2f}")
+            print(f"    仓位大小: {strategy['position_size']}")
+            print()
+
+        print(f"【风险分析】")
+        print(f"  整体风险等级: {result['risk_analysis']['overall_risk']}")
+        print(f"  风险因素: {', '.join(result['risk_analysis']['risk_factors'])}")
+        if result['risk_analysis']['warnings']:
+            print(f"  警告: {', '.join(result['risk_analysis']['warnings'])}")
+        print()
+
+        print(f"{'='*70}")
+        print(f"JSON 文件已保存: {result['json_file']}")
+        print(f"{'='*70}\n")
     else:
         loader = FXDataLoader()
         all_data = loader.load_all_pairs(args.data_file)
-        model = FXTradingModel(MODEL_CONFIG)
 
-        print(f"\n=== 所有货币对综合分析 ===")
-        print(f"分析日期: {args.date or pd.Timestamp.now().strftime('%Y-%m-%d')}\n")
+        print(f"\n{'='*70}")
+        print(f"所有货币对多周期综合分析")
+        print(f"{'='*70}\n")
 
         for pair, df in all_data.items():
             try:
-                ml_prediction = model.predict(pair, df)
-                result = analyzer.analyze_pair(pair, df, ml_prediction,
-                                               use_llm=use_llm,
-                                               llm_length=llm_length)
+                result = analyzer.analyze_pair(pair, df, use_llm=use_llm)
 
-                print(f"--- {pair} ---")
-                print(f"技术信号: {result['technical_signal']} (强度: {result['technical_strength']:.0f})")
-                print(f"ML预测: {'上涨' if result['ml_prediction'] == 1 else '下跌'} (概率: {result['ml_probability']:.2f})")
-                print(f"置信度: {result['ml_confidence']}")
-                print(f"一致性: {'是' if result['consistency'] else '否'}")
-                print(f"\n建议: {result['final_recommendation']}")
-                print(f"入场价: {result['entry_price']:.4f}")
-                print(f"止损位: {result['stop_loss']:.4f}")
-                print(f"止盈位: {result['take_profit']:.4f}")
-                print(f"\n推理: {result['reasoning']}")
-                
-                if use_llm and 'llm_report' in result and result['llm_report']:
-                    print(f"\n{'='*60}")
-                    print(f"大模型分析报告")
-                    print(f"{'='*60}")
-                    print(f"\n{result['llm_report']}")
-                    if result.get('key_factors'):
-                        print(f"\n关键因素：{', '.join(result['key_factors'])}")
-                    print(f"{'='*60}\n")
-                
+                print(f"--- {result['metadata']['pair_name']} ---")
+                print(f"当前价格: {result['metadata']['current_price']:.4f}")
+                print(f"一致性评分: {result['consistency_analysis']['score']:.2f}")
+                print(f"整体评估: {result['llm_analysis']['overall_assessment']}")
+
+                # 显示各周期建议
+                print("各周期建议:")
+                horizon_names = {'1': '1天', '5': '5天', '20': '20天'}
+                for horizon, analysis in result['llm_analysis']['horizon_analysis'].items():
+                    print(f"  {horizon_names.get(horizon, horizon)}: {analysis['recommendation']} "
+                          f"({analysis['confidence']})")
+
+                # 显示短线交易策略
+                short_term = result['trading_strategies']['short_term']
+                print(f"短线策略: 入场 {short_term['entry_price']:.4f} | "
+                      f"止损 {short_term['stop_loss']:.4f} | "
+                      f"止盈 {short_term['take_profit']:.4f}")
+
+                print(f"JSON 文件: {result['json_file']}")
                 print()
             except Exception as e:
                 logger.error(f"分析货币对 {pair} 失败: {e}")
