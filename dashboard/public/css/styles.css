@@ -84,7 +84,7 @@ body {
   to { transform: rotate(360deg); }
 }
 
-.last-update, .auto-refresh {
+.last-update, .auto-refresh, .last-refresh {
   font-size: 0.875rem;
   color: var(--text-secondary);
 }

@@ -2,20 +2,30 @@
 
 ## 项目概述
 
-本项目是一个基于机器学习和人机协作的外汇汇率预测系统，包含：
+本项目是一个基于机器学习和人机协作的多周期外汇汇率预测系统，包含：
 
+- **多周期预测系统**：同时预测 1天、5天、20天三个周期的汇率走势，支持多货币对独立建模
 - **双重验证分析系统**：以大模型为核心决策者，整合 35 个技术指标和 ML 预测结果，生成专业自然语言分析报告
 - **技术指标引擎**：计算 35 个专业技术指标（趋势、动量、波动、价格形态、市场环境），全部使用滞后数据防止数据泄漏
-- **CatBoost 预测模型**：20 天周期预测汇率涨跌方向，支持多货币对独立建模
+- **CatBoost 预测模型**：多周期 CatBoost 模型，每个货币对每个周期独立建模
 - **大模型集成**：通义千问 API，提供技术面深度分析、ML 预测验证、风险分析和交易建议
+- **交易方案生成器**：自动计算入场价、止损止盈（基于 ATR）、风险回报比
+- **Web Dashboard**：Node.js + Express 实时可视化仪表盘，支持大模型分析展示
 - **一体化脚本**：`run_full_pipeline.sh` 脚本实现训练、预测、分析全流程自动化
 
 ## 快速开始
 
 ### 安装依赖
 
+**Python 依赖：**
 ```bash
 pip install -r requirements.txt
+```
+
+**Dashboard 依赖（可选）：**
+```bash
+cd dashboard
+npm install
 ```
 
 ### 配置环境变量
@@ -35,11 +45,11 @@ cp .env.example .env
 
 ```bash
 # 使用指定的数据文件
-./run_full_pipeline.sh --data-file FXRate_20260326.xlsx
+./run_full_pipeline.sh --data-file FXRate_20260320.xlsx
 
 # Python 模块
-python3 -m ml_services.fx_trading_model --mode train --pair EUR --data-file FXRate_20260326.xlsx
-python3 -m comprehensive_analysis --data-file FXRate_20260326.xlsx
+python3 -m ml_services.fx_trading_model --mode train --pair EUR --data-file FXRate_20260320.xlsx
+python3 -m comprehensive_analysis --data-file FXRate_20260320.xlsx
 ```
 
 **2. 环境变量（中等优先级）**
@@ -48,7 +58,7 @@ python3 -m comprehensive_analysis --data-file FXRate_20260326.xlsx
 
 ```bash
 # 编辑 .env 文件，添加数据文件路径
-DATA_FILE=FXRate_20260326.xlsx
+DATA_FILE=FXRate_20260320.xlsx
 ```
 
 **3. 配置文件（最低优先级）**
@@ -57,7 +67,7 @@ DATA_FILE=FXRate_20260326.xlsx
 
 ```python
 DATA_CONFIG = {
-    'data_file': 'FXRate_20260326.xlsx',  # 修改这里
+    'data_file': 'FXRate_20260320.xlsx',  # 修改这里
     # ...
 }
 ```
@@ -78,18 +88,31 @@ DATA_CONFIG = {
 
 # 禁用大模型分析
 ./run_full_pipeline.sh --no-llm
-
-# 指定分析长度（short/medium/long）
-./run_full_pipeline.sh --llm-length short
 ```
+
+### 启动 Dashboard（可选）
+
+```bash
+cd dashboard
+npm start
+
+# 访问 http://localhost:3000
+```
+
+Dashboard 功能：
+- 实时显示货币对概览卡片（价格、预测、概率、置信度、分析摘要）
+- 交易策略表格（各周期入场价、止损、止盈、建议、置信度）
+- 技术指标图表（价格走势 + 均线、技术指标数值）
+- 风险提示面板
+- 点击卡片查看完整大模型分析（侧边栏详情）
 
 ### 单独运行各模块
 
 ```bash
-# 训练单个货币对模型
+# 训练单个货币对的所有周期模型
 python3 -m ml_services.fx_trading_model --mode train --pair EUR
 
-# 生成单个货币对预测
+# 生成单个货币对的多周期预测
 python3 -m ml_services.fx_trading_model --mode predict --pair EUR
 
 # 综合分析（启用大模型）
@@ -97,9 +120,6 @@ python3 -m comprehensive_analysis --pair EUR
 
 # 综合分析（禁用大模型）
 python3 -m comprehensive_analysis --pair EUR --no-llm
-
-# 指定分析长度
-python3 -m comprehensive_analysis --pair EUR --llm-length medium
 ```
 
 ### 运行测试
@@ -113,6 +133,16 @@ pytest tests/test_integration.py -v
 
 # 运行测试并检查覆盖率
 pytest tests/ --cov=. --cov-report=html --cov-report=term
+
+# 查看覆盖率 HTML 报告
+# 报告位置：htmlcov/index.html
+```
+
+### 运行 Dashboard 测试
+
+```bash
+cd dashboard
+npm test
 ```
 
 ## Session Workflow
@@ -130,27 +160,53 @@ pytest tests/ --cov=. --cov-report=html --cov-report=term
 fx_predict/
 ├── run_full_pipeline.sh          # 一体化脚本（推荐）
 ├── data/                           # 数据目录
-│   ├── models/                    # 训练好的模型（CatBoost）
-│   └── predictions/               # 预测结果
+│   ├── models/                    # 训练好的模型（CatBoost，18个模型）
+│   │   ├── EUR_catboost_1d.pkl
+│   │   ├── EUR_catboost_5d.pkl
+│   │   ├── EUR_catboost_20d.pkl
+│   │   ├── JPY_catboost_1d.pkl
+│   │   └── ...（6货币对 × 3周期）
+│   └── predictions/               # 预测结果（JSON格式）
+│       ├── EUR_multi_horizon_*.json
+│       ├── JPY_multi_horizon_*.json
+│       └── ...
+├── dashboard/                      # Web Dashboard（Node.js）
+│   ├── server.js                  # Express API 服务器
+│   ├── package.json               # Node.js 依赖
+│   ├── public/                    # 前端资源
+│   │   ├── index.html
+│   │   ├── css/
+│   │   └── js/
+│   └── tests/                     # Dashboard 测试
 ├── data_services/                 # 数据服务层
 │   ├── excel_loader.py           # Excel 数据加载器
 │   └── technical_analysis.py     # 技术指标引擎（35个指标）
 ├── ml_services/                   # 机器学习服务层
-│   ├── fx_trading_model.py       # CatBoost 模型
+│   ├── fx_trading_model.py       # CatBoost 模型（多周期）
 │   ├── feature_engineering.py    # 特征工程（18个特征）
-│   └── base_model_processor.py   # 模型处理器
+│   ├── base_model_processor.py   # 模型处理器
+│   ├── multi_horizon_context.py  # 多周期上下文构建器
+│   ├── multi_horizon_prompt.py   # LLM Prompt 构建器
+│   ├── llm_parser.py             # LLM 输出解析器
+│   ├── strategy_generator.py     # 交易方案生成器
+│   └── json_formatter.py         # JSON 格式化器
 ├── llm_services/                  # 大模型服务层
 │   └── qwen_engine.py            # 通义千问 API 封装
-├── comprehensive_analysis.py      # 人机协作整合层（双重验证）
+├── comprehensive_analysis.py      # 人机协作整合层（多周期）
 ├── config.py                      # 配置文件
-├── requirements.txt               # 依赖列表
-└── tests/                         # 测试文件（103个测试用例）
+├── requirements.txt               # Python 依赖
+└── tests/                         # 测试文件（115个测试用例）
     ├── test_integration.py       # 集成测试
     ├── test_comprehensive_analysis.py
     ├── test_excel_loader.py
     ├── test_feature_engineering.py
     ├── test_fx_trading_model.py
-    └── test_technical_analysis.py
+    ├── test_technical_analysis.py
+    ├── test_multi_horizon_context.py
+    ├── test_multi_horizon_prompt.py
+    ├── test_llm_parser.py
+    ├── test_strategy_generator.py
+    └── test_json_formatter.py
 ```
 
 ## 支持的货币对
@@ -164,11 +220,21 @@ fx_predict/
 
 **注意**：货币对代码使用基准货币（如 EUR、JPY 等）作为键名。
 
+## 预测周期
+
+系统支持三个预测周期：
+
+- **短线（1天）**：预测 1 天后的汇率走势
+- **中线（5天）**：预测 5 天后的汇率走势
+- **长线（20天）**：预测 20 天后的汇率走势
+
+每个货币对、每个周期都有独立的 CatBoost 模型。
+
 ## 技术指标（35个）
 
 系统计算以下技术指标，所有指标均使用滞后数据（`.shift(1)`）防止数据泄漏：
 
-### 趋势类指标（11个）
+### 趋势类指标（17个）
 
 | 指标 | 说明 |
 |------|------|
@@ -219,72 +285,78 @@ fx_predict/
 | Bias_20 | 20日乖离率 |
 | Trend_Slope_20 | 趋势斜率（20日线性回归斜率） |
 
-### 市场环境指标（2个）
+### 市场环境指标（1个）
 
 | 指标 | 说明 |
 |------|------|
 | MA_Alignment | 均线排列强度（多头/空头排列） |
-| （综合 SMA5/SMA10/SMA20/SMA50） | |
 
-### 交叉特征（2个）
+### 交叉特征（3个）
 
 | 指标 | 说明 |
 |------|------|
 | SMA5_cross_SMA20 | 均线交叉信号（金叉/死叉） |
 | Price_vs_Bollinger | 价格在布林带中的位置 |
+| Price_vs_MA120 | 价格相对于120日均线的位置 |
 
-## 人机协作分析流程
+## 多周期分析流程
 
-系统采用**双重验证分析机制**，以大模型为核心决策者，整合完整的技术指标数据和ML预测结果，生成自然语言格式的市场分析报告和交易建议。
+系统采用**多周期双重验证分析机制**，同时预测 1天、5天、20天三个周期，以大模型为核心决策者，整合完整的技术指标数据和ML预测结果，生成自然语言格式的市场分析报告和交易建议。
 
 ### 工作流程
 
 ```
-技术指标数据（35个） → LLM 定性分析
-                      ↓
-ML 预测结果 → LLM 双重验证 → 生成综合建议 + 完整分析报告
-                      ↓
-              自然语言输出
+数据加载 → 技术指标计算（35个） → ML 多周期预测（1d/5d/20d）
+                                              ↓
+            多周期上下文构建 → 一致性分析 → LLM 分析
+                                              ↓
+              交易方案生成 → JSON 格式化输出
 ```
 
 ### 分析流程
 
-1. **数据准备**：提取所有技术指标的当前值（35个专业指标）
-2. **上下文构建**：整合技术指标、ML预测结果、当前价格等信息
-3. **大模型分析**：
+1. **数据准备**：为每个周期计算技术指标和ML预测
+2. **上下文构建**：整合35个技术指标、3个ML预测结果、当前价格等信息
+3. **一致性分析**：
+   - 评估各周期预测方向的一致性
+   - 计算技术指标支持度
+   - 生成整体一致性评分
+4. **大模型分析**：
    - 技术面深度分析（趋势、支撑阻力、反转信号）
    - ML预测验证（一致性评估、可靠性判断）
    - 风险分析（风险因素、止损建议）
    - 交易建议（明确方向、入场/止损/止盈价格、仓位管理）
-4. **输出解析**：提取建议方向、置信度、完整分析报告、关键因素
+5. **交易方案生成**：
+   - 基于ATR计算止损止盈
+   - 风险回报比确保 1:1
+   - 自动调整仓位大小
+6. **JSON输出**：标准化格式输出所有分析结果
 
-### 分析报告类型
+### 分析报告内容
 
-支持三种长度的分析报告，适应不同场景需求：
+每个货币对的分析输出包括：
 
-- **Short（50-100字）**：简短建议和关键理由
-- **Medium（200-300字）**：技术面分析、风险提示、交易建议
-- **Long（500+字）**：完整市场分析报告，包含：
-  - 技术面深度分析
-  - ML预测验证
-  - 风险分析
-  - 交易建议（入场价、止损位、止盈位、仓位管理）
-  - 关键因素总结（3-5个）
+- **元数据**：货币对代码、名称、当前价格、数据日期、分析日期
+- **ML 预测**：3个周期的预测结果（方向、概率、置信度、目标日期）
+- **一致性分析**：
+  - 整体一致性评分（0.0-1.0）
+  - 各周期一致性分数（基于预测概率 × 70% + 技术指标支持度 × 30%）
+  - 技术指标摘要
+- **LLM 分析**：
+  - 整体评估（谨慎乐观、中性、谨慎悲观等）
+  - 分析摘要（详细技术面分析）
+  - 关键因素（3-5个核心因素）
+  - 各周期分析（详细分析、建议、关键点）
+- **交易策略**：
+  - 短线策略（1天）：入场价、止损、止盈、风险回报比、仓位
+  - 中线策略（5天）：入场价、止损、止盈、风险回报比、仓位
+  - 长线策略（20天）：入场价、止损、止盈、风险回报比、仓位
+- **技术指标**：完整的35个指标数值（按类别组织）
+- **风险分析**：风险等级、风险因素、警告信息
 
 ### 决策优先级
 
 系统优先使用**LLM建议**作为最终决策，ML预测作为验证参考。当LLM不可用时，降级到基于ML预测的规则引擎。
-
-### 输出内容
-
-每个货币对的分析输出包括：
-
-- **基本信息**：当前价格、分析日期
-- **ML预测**：预测方向（上涨/下跌）、预测概率、置信度
-- **LLM建议**：建议方向（buy/sell/hold）、置信度、一致性（vs ML预测）
-- **完整分析报告**：自然语言格式的专业市场分析
-- **关键因素**：影响决策的3-5个核心因素
-- **交易执行**：入场价、止损位、止盈位、风险回报比
 
 ## 数据泄漏防范
 
@@ -347,36 +419,96 @@ if ml_probability >= 0.60 and ml_prediction == 1:
 
 **测试**：集成测试 `test_hard_constraints()` 验证此约束。
 
-### 3. 其他约束
+### 3. 交易方案约束
 
-- **止损止盈**：基于 ATR 计算（2倍 ATR）
-- **风险回报比**：默认 1:1
-- **置信度分级**：
-  - 高：probability ≥ 0.60
-  - 中：0.50 ≤ probability < 0.60
-  - 低：probability < 0.50
+- **止损止盈**：基于 ATR 计算，周期越长空间越大
+  - 1天：1.1倍 ATR
+  - 5天：1.5倍 ATR
+  - 20天：3.0倍 ATR
+- **风险回报比**：固定 1:1
+- **仓位管理**：根据置信度自动调整
+  - 高置信度：large（大仓位）
+  - 中置信度：medium（中等仓位）
+  - 低置信度：small（小仓位）
+  - 未知置信度：none（不交易）
+
+## Web Dashboard
+
+### 启动 Dashboard
+
+```bash
+cd dashboard
+npm start
+```
+
+访问 `http://localhost:3000` 查看 Dashboard。
+
+### Dashboard 功能
+
+1. **货币对概览卡片**：
+   - 显示当前价格、预测方向、概率、置信度
+   - 显示简短分析摘要（最多50字）
+   - 点击卡片查看完整分析详情
+
+2. **交易策略表格**：
+   - 显示所有货币对的各周期策略
+   - 包含入场价、止损、止盈、建议、置信度
+   - 止损止盈基于ATR计算，风险回报比1:1
+
+3. **技术指标图表**：
+   - 价格走势图 + 均线（SMA5/SMA10/SMA20）
+   - 技术指标数值图（RSI14/MACD/ATR14）
+
+4. **风险提示面板**：
+   - 显示各货币对的风险因素和警告
+
+5. **大模型分析侧边栏**：
+   - 点击货币对卡片打开
+   - 显示基本信息、分析摘要、关键因素
+   - 显示各周期详细分析（短线/中线/长线）
+   - 包含置信度、建议、关键点
+
+### Dashboard API
+
+- `GET /health` - 健康检查
+- `GET /api/v1/pairs` - 获取所有货币对信息
+- `GET /api/v1/pairs/:pair` - 获取单个货币对详细信息
+- `GET /api/v1/strategies` - 获取交易策略
+- `GET /api/v1/indicators/:pair` - 获取技术指标
+- `GET /api/v1/risk` - 获取风险分析
 
 ## 测试覆盖率
 
 ### 覆盖率目标
 
-- **总体覆盖率**：≥ 85%（当前：85%）
+- **总体覆盖率**：≥ 85%（当前：77%）
 - **核心模块覆盖率**：≥ 70%
   - comprehensive_analysis.py: 92% ✅
-  - data_services/excel_loader.py: 83% ✅
-  - data_services/technical_analysis.py: 78% ✅
-  - ml_services/base_model_processor.py: 74% ✅
   - ml_services/fx_trading_model.py: 91% ✅
+  - data_services/excel_loader.py: 83% ✅
+  - data_services/technical_analysis.py: 78% ✅ ✅
+  - ml_services/base_model_processor.py: 74% ✅
+  - **新模块覆盖率**：
+    - multi_horizon_context.py: 100% ✅
+    - multi_horizon_prompt.py: 98% ✅
+    - llm_parser.py: 98% ✅
+    - strategy_generator.py: 100% ✅
+    - json_formatter.py: 99% ✅
 
 ### 测试统计
 
-- **总测试数**：103 个
-- **单元测试**：94 个
+- **总测试数**：115 个
+- **单元测试**：106 个
   - test_comprehensive_analysis.py: 4 个
   - test_excel_loader.py: 7 个
-  - test_feature_engineering.py: 35 个（包含交叉特征测试）
+  - test_feature_engineering.py: 35 个
   - test_fx_trading_model.py: 6 个
   - test_technical_analysis.py: 42 个
+  - test_multi_horizon_context.py: 6 个
+  - test_multi_horizon_prompt.py: 4 个
+  - test_llm_parser.py: 5 个
+  - test_strategy_generator.py: 4 个
+  - test_json_formatter.py: 8 个
 - **集成测试**：9 个
   - test_end_to_end_workflow: 端到端工作流
   - test_multiple_pairs_workflow: 多货币对工作流
@@ -436,7 +568,7 @@ logging.basicConfig(
 
 ## 特征工程
 
-### 特征类别
+### 特征类别（18个特征）
 
 1. **价格衍生特征**（6个）：
    - Close_change_1d/5d/20d：价格变化
@@ -487,14 +619,92 @@ logging.basicConfig(
 
 ### 预测周期
 
-- **默认**：20 天
-- **可配置**：通过 `config.py` 调整
+- **支持周期**：1天、5天、20天
+- **默认周期**：所有周期（多周期分析）
+- **独立建模**：每个货币对、每个周期独立模型
 
 ### 数据分割
 
 - **训练集**：80%
 - **验证集**：20%
 - **分割方式**：时间序列分割（不混洗）
+
+### 模型数量
+
+- **总模型数**：18 个（6个货币对 × 3个周期）
+- **模型命名**：`{pair}_catboost_{horizon}d.pkl`
+  - 示例：`EUR_catboost_1d.pkl`, `JPY_catboost_20d.pkl`
+
+## JSON 输出格式
+
+系统输出标准 JSON 格式，包含以下必需部分：
+
+```json
+{
+  "metadata": {
+    "pair": "EUR",
+    "pair_name": "欧元/美元",
+    "current_price": 1.1570,
+    "data_date": "2026-03-20",
+    "analysis_date": "2026-03-26",
+    "horizons": [1, 5, 20]
+  },
+  "ml_predictions": {
+    "1_day": {
+      "horizon": 1,
+      "prediction": 1,
+      "prediction_text": "上涨",
+      "probability": 0.5132,
+      "confidence": "medium",
+      "target_date": "2026-03-21"
+    },
+    "5_day": {...},
+    "20_day": {...}
+  },
+  "consistency_analysis": {
+    "score": 1.0,
+    "interpretation": "完全一致",
+    "all_same": true,
+    "majority_trend": "上涨",
+    "scores_by_horizon": {
+      "1d": 0.4942,
+      "5d": 0.7505,
+      "20d": 0.5112,
+      "overall": 0.5853
+    },
+    "technical_support": 0.45,
+    "technical_indicators_summary": [...]
+  },
+  "llm_analysis": {
+    "summary": "...",
+    "overall_assessment": "谨慎乐观",
+    "key_factors": [...],
+    "horizon_analysis": {
+      "1": {...},
+      "5": {...},
+      "20": {...}
+    }
+  },
+  "trading_strategies": {
+    "short_term": {...},
+    "medium_term": {...},
+    "long_term": {...}
+  },
+  "technical_indicators": {
+    "trend": {...},
+    "momentum": {...},
+    "volatility": {...},
+    "volume": {...},
+    "price_pattern": {...},
+    "market_environment": {...}
+  },
+  "risk_analysis": {
+    "overall_risk": "medium",
+    "risk_factors": [...],
+    "warnings": [...]
+  }
+}
+```
 
 ## 常见问题
 
@@ -538,7 +748,7 @@ Excel 文件必须满足：
 - 可选：`High`、`Low`、`Open` 列（系统会自动生成）
 - 日期格式：MM/DD/YYYY
 
-### 2. 模型训练失败
+### 3. 模型训练失败
 
 可能原因：
 - 数据点不足（至少需要 100 条）
@@ -550,7 +760,7 @@ Excel 文件必须满足：
 - 确保数据量充足
 - 查看日志输出
 
-### 3. 测试失败
+### 4. 测试失败
 
 可能原因：
 - 数据文件不存在
@@ -569,11 +779,11 @@ ls -la FXRate_20260320.xlsx
 pytest tests/test_integration.py::test_end_to_end_workflow -v -s
 ```
 
-### 4. 大模型不可用
+### 5. 大模型不可用
 
 如果未配置 `QWEN_API_KEY`，大模型功能将不可用。系统会自动降级到基于 ML 预测的规则引擎，不影响核心功能（ML 预测和技术分析）。
 
-### 5. Python 模块导入错误
+### 6. Python 模块导入错误
 
 运行脚本时遇到 `ModuleNotFoundError`，请确保使用 `-m` 参数：
 
@@ -585,12 +795,47 @@ python3 ml_services/fx_trading_model.py
 python3 -m ml_services.fx_trading_model
 ```
 
+### 7. Dashboard 无法启动
+
+可能原因：
+- Node.js 未安装
+- 依赖未安装
+
+解决方案：
+```bash
+cd dashboard
+npm install
+npm start
+```
+
+### 8. Dashboard 显示"暂无分析"
+
+可能原因：
+- 数据未生成：运行 `./run_full_pipeline.sh` 生成预测数据
+- 服务器缓存：重启 Dashboard 服务器
+- 浏览器缓存：硬刷新页面（Ctrl+Shift+R）
+
+### 9. 止损止盈距离看起来不一致
+
+**问题**：为什么有时止损大、止盈小？
+
+**解答**：
+- 对于 sell 策略：止损在入场价之上，止盈在入场价之下
+- 对于 buy 策略：止损在入场价之下，止盈在入场价之上
+- **实际距离完全相等**：风险回报比始终为 1:1
+- 20天周期距离更大：因为周期越长，需要更大的止损止盈空间
+- 基于 ATR 计算：ATR 乘数随周期增加（1天：1.1倍，5天：1.5倍，20天：3.0倍）
+
+示例：
+- JPY 20天 sell：入场 158.36，止损 167.86（+9.50），止盈 148.86（-9.50），距离完全相等
+
 ## 开发者
 
 - **创建时间**：2026-03-25
-- **版本**：1.0 (MVP)
+- **版本**：3.0（多周期 + Dashboard）
 - **Python 版本**：3.10+
-- **框架**：CatBoost, Pandas, NumPy
+- **框架**：CatBoost, Pandas, NumPy, Express
+- **前端**：HTML5, CSS3, JavaScript, Chart.js
 
 ## 许可证
 

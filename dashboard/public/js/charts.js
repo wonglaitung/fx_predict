@@ -147,8 +147,12 @@ function renderPriceChart(indicators, pair) {
   const sma5 = trend.SMA5 || 1.1500;
   const sma10 = trend.SMA10 || 1.1500;
   
-  // Generate labels (last 30 days)
-  const labels = Array.from({ length: 30 }, (_, i) => `Day ${i + 1}`);
+  // Generate labels (last 30 days as actual dates)
+  const labels = Array.from({ length: 30 }, (_, i) => {
+    const date = new Date();
+    date.setDate(date.getDate() - (29 - i));
+    return date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' });
+  });
   
   // Generate realistic trend data based on current values
   const datasets = [
@@ -236,7 +240,12 @@ function renderIndicatorValueChart(indicators, pair) {
     indicatorChart.destroy();
   }
   
-  const labels = Array.from({ length: 30 }, (_, i) => `Day ${i + 1}`);
+  // Generate labels (last 30 days as actual dates)
+  const labels = Array.from({ length: 30 }, (_, i) => {
+    const date = new Date();
+    date.setDate(date.getDate() - (29 - i));
+    return date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' });
+  });
   const datasets = [];
   
   // RSI14

@@ -100,21 +100,30 @@ function renderStrategiesTable(strategies, pairs) {
 }
 
 // Render risk warnings
-function renderRiskWarnings(risks) {
+function renderRiskWarnings(risks, pairs) {
   const container = document.getElementById('riskWarnings');
   container.innerHTML = '';
+  
+  // Create a map of pair code to pair name
+  const pairNameMap = {};
+  if (pairs && Array.isArray(pairs)) {
+    pairs.forEach(p => {
+      pairNameMap[p.pair] = p.pair_name || p.pair;
+    });
+  }
   
   let hasWarnings = false;
   
   Object.entries(risks).forEach(([pair, risk]) => {
     if (risk.warnings && risk.warnings.length > 0) {
       hasWarnings = true;
+      const pairName = pairNameMap[pair] || pair;
       risk.warnings.forEach(warning => {
         const warningEl = document.createElement('div');
         warningEl.className = 'risk-warning';
         warningEl.innerHTML = `
           <span class="risk-icon">⚠️</span>
-          <span>${pair}: ${warning}</span>
+          <span>${pairName}: ${warning}</span>
         `;
         container.appendChild(warningEl);
       });

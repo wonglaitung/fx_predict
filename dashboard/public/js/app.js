@@ -18,12 +18,6 @@ async function fetchAPI(endpoint) {
 
 // Refresh all data
 async function refreshData() {
-  const refreshBtn = document.getElementById('refreshBtn');
-  
-  // Disable button and show spinning
-  refreshBtn.disabled = true;
-  refreshBtn.classList.add('spinning');
-  
   try {
     // Fetch all data in parallel
     const [pairsData, strategiesData, riskData] = await Promise.all([
@@ -35,7 +29,7 @@ async function refreshData() {
     // Update UI
     renderOverviewCards(pairsData.pairs);
     renderStrategiesTable(strategiesData.strategies, pairsData.pairs);
-    renderRiskWarnings(riskData.risks);
+    renderRiskWarnings(riskData.risks, pairsData.pairs);
     
     // Populate pair selector
     populatePairSelector(pairsData.pairs);
@@ -54,13 +48,14 @@ async function refreshData() {
       document.getElementById('lastUpdate').textContent = dataDate;
     }
     
+    // Update last refresh time (current time)
+    const now = new Date();
+    const timeString = now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    document.getElementById('lastRefresh').textContent = `最后刷新: ${timeString}`;
+    
   } catch (error) {
     console.error('Error refreshing data:', error);
     alert('数据加载失败，请重试');
-  } finally {
-    // Re-enable button and stop spinning
-    refreshBtn.disabled = false;
-    refreshBtn.classList.remove('spinning');
   }
 }
 
@@ -134,9 +129,6 @@ function stopAutoRefresh() {
 
 // Initialize application
 async function init() {
-  // Add event listener to refresh button
-  document.getElementById('refreshBtn').addEventListener('click', refreshData);
-  
   // Add event listener to pair selector
   const pairSelector = document.getElementById('pairSelector');
   if (pairSelector) {
