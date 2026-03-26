@@ -150,17 +150,44 @@
 
 ## 最后更新
 
-- 日期：2026-03-25
+- 日期：2026-03-26
 - 更新者：iFlow CLI
 - 更新内容：
-  - **修复数据泄漏问题**：为 OBV 指标添加 .shift(1) 防止数据泄漏
-  - **新增交叉特征**：在特征工程中添加 SMA5_cross_SMA20 和 Price_vs_Bollinger 两个交叉特征
-  - **特征数量提升**：特征工程从 16 个特征增加到 18 个特征
-  - **更新测试用例**：为新增交叉特征添加 6 个测试用例，更新 OBV 数据泄漏验证测试
-  - **总测试数**：从 88 个增加到 92 个
-  - **实现大模型集成功能**：添加 `generate_llm_analysis` 方法，实现双重验证分析系统
-  - **JSON 输出格式**：确保 LLM 输出结构化，支持 short/medium/long 三种分析长度
-  - **性能监控**：记录 LLM 调用耗时
-  - **错误处理**：完善的异常处理和用户提示（API 密钥、JSON 解析、网络请求）
-  - **命令行参数**：`--no-llm` 和 `--llm-length`
-  - **MVP 完成度**：从 90% 提升到 100%
+  - **实现数据文件路径三级配置**：支持命令行参数 > 环境变量 > 配置文件默认值
+  - **在 config.py 中添加 DATA_FILE 配置**：集中管理数据文件路径
+  - **更新所有模块支持数据文件配置**：comprehensive_analysis.py 和 fx_trading_model.py
+  - **增强 shell 脚本支持**：从 .env 文件读取 DATA_FILE 环境变量
+  - **更新文档说明**：添加数据文件配置的详细说明和优先级
+  - **配置验证增强**：在 validate_config 中添加数据文件验证
+  - **用户体验优化**：更新数据时无需修改代码，只需使用命令行参数或配置环境变量
+
+- 日期：2026-03-26（第二次更新）
+- 更新者：iFlow CLI
+- 更新内容：
+  - **实现多周期预测功能**：支持 1天、5天、20天 三个预测周期
+  - **添加 train_all_horizons 方法**：训练所有周期的独立模型
+  - **添加 predict_all_horizons 方法**：预测所有周期
+  - **模型文件命名规范**：pair_catboost_{horizon}d.pkl（如 EUR_catboost_1d.pkl）
+  - **命令行参数增强**：--all-horizons 选项支持多周期训练和预测
+  - **综合分析多周期输出**：显示所有周期的预测结果
+  - **Shell 脚本支持**：--all-horizons 选项支持完整流程的多周期训练、预测和分析
+  - **向后兼容**：保留 --horizon 选项，支持单周期预测
+
+- 日期：2026-03-26（第三次更新 - 完整的多周期外汇智能分析系统）
+- 更新者：iFlow CLI
+- 更新内容：
+  - **完整的多周期分析系统实现**：同时预测 1天、5天、20天三个周期
+  - **新增 5 个核心模块**：
+    - MultiHorizonContextBuilder：构建多周期上下文（35个技术指标 + 3个ML预测）
+    - MultiHorizonPromptBuilder：构建 LLM 分析 Prompt
+    - LLMAnalysisParser：解析 LLM JSON 输出（带验证和错误处理）
+    - TradingStrategyGenerator：生成三个周期的交易方案（入场价、止损、止盈、风险回报比）
+    - JSONFormatter：格式化标准 JSON 输出（7个必需部分）
+  - **重构 ComprehensiveAnalyzer**：集成所有新模块，实现完整的双重验证分析流程
+  - **更新 run_full_pipeline.sh**：移除单周期参数，多周期作为默认行为
+  - **训练所有周期模型**：6个货币对 × 3个周期 = 18个模型
+  - **新增 18 个测试用例**：5个新模块的完整单元测试
+  - **更新集成测试**：适配新的多周期结构（110个测试全部通过）
+  - **标准 JSON 输出格式**：包含 metadata, ml_predictions, consistency_analysis, llm_analysis, trading_strategies, technical_indicators, risk_analysis
+  - **测试覆盖率**：77%（新模块覆盖率 98-100%）
+  - **JSON Schema 验证**：所有必需部分验证通过
