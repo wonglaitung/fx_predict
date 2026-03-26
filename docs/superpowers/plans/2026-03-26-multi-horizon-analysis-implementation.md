@@ -26,7 +26,7 @@ tests/
 ├── test_multi_horizon_prompt.py
 ├── test_llm_parser.py
 ├── test_strategy_generator.py
-└── test_json_formatter.py
+└── test_json_formatter.py  # 在 Task 5 中创建
 ```
 
 ### 修改文件
@@ -136,6 +136,9 @@ def test_build_context():
         'Low': [c * 0.99 for c in close_prices]
     })
     
+    # 设置 Date 为索引（与实际数据格式一致）
+    test_data.set_index('Date', inplace=True)
+    
     builder = MultiHorizonContextBuilder()
     context = builder.build('EUR', test_data)
     
@@ -178,7 +181,7 @@ class MultiHorizonContextBuilder:
         
         # 1. 计算技术指标
         data = self.technical_analyzer.compute_all_indicators(data)
-        self.logger.info(f"技术指标计算完成，共 36 个")
+        self.logger.info(f"技术指标计算完成，共 35 个")
         
         # 2. 获取 ML 预测
         predictions = {}
@@ -513,21 +516,24 @@ class MultiHorizonPromptBuilder:
   "summary": "综合摘要（50-100字）",
   "overall_assessment": "整体评估（谨慎乐观/乐观/悲观/中性）",
   "key_factors": ["因素1", "因素2", "因素3"],
-  "horizon_recommendations": {{
+  "horizon_analysis": {{
     "1": {{
       "recommendation": "buy/sell/hold",
       "confidence": "high/medium/low",
-      "reasoning": "简要理由（1-2句话）"
+      "analysis": "简要分析（1-2句话）",
+      "key_points": ["关键点1", "关键点2"]
     }},
     "5": {{
       "recommendation": "buy/sell/hold",
       "confidence": "high/medium/low",
-      "reasoning": "简要理由（1-2句话）"
+      "analysis": "简要分析（1-2句话）",
+      "key_points": ["关键点1", "关键点2"]
     }},
     "20": {{
       "recommendation": "buy/sell/hold",
       "confidence": "high/medium/low",
-      "reasoning": "简要理由（1-2句话）"
+      "analysis": "简要分析（1-2句话）",
+      "key_points": ["关键点1", "关键点2"]
     }}
   }}
 }}
@@ -684,10 +690,10 @@ def test_parse_valid_json():
         "summary": "测试摘要",
         "overall_assessment": "中性",
         "key_factors": ["因素1", "因素2"],
-        "horizon_recommendations": {
-            "1": {"recommendation": "buy", "confidence": "medium", "reasoning": "理由1"},
-            "5": {"recommendation": "hold", "confidence": "low", "reasoning": "理由2"},
-            "20": {"recommendation": "sell", "confidence": "medium", "reasoning": "理由3"}
+        "horizon_analysis": {
+            "1": {"recommendation": "buy", "confidence": "medium", "analysis": "理由1", "key_points": ["关键点1"]},
+            "5": {"recommendation": "hold", "confidence": "low", "analysis": "理由2", "key_points": ["关键点2"]},
+            "20": {"recommendation": "sell", "confidence": "medium", "analysis": "理由3", "key_points": ["关键点3"]}
         }
     }'''
     
@@ -750,23 +756,23 @@ class LLMAnalysisParser:
     
     def _validate_required_fields(self, result: dict) -> None:
         """验证必需字段"""
-        required_fields = ['summary', 'overall_assessment', 'key_factors', 'horizon_recommendations']
+        required_fields = ['summary', 'overall_assessment', 'key_factors', 'horizon_analysis']
         
         for field in required_fields:
             if field not in result:
                 raise ValueError(f"缺少必需字段: {field}")
         
-        # 验证 horizon_recommendations
-        if not isinstance(result['horizon_recommendations'], dict):
-            raise ValueError("horizon_recommendations 必须是字典")
+        # 验证 horizon_analysis
+        if not isinstance(result['horizon_analysis'], dict):
+            raise ValueError("horizon_analysis 必须是字典")
         
         required_horizons = [1, 5, 20]
         for horizon in required_horizons:
-            if str(horizon) not in result['horizon_recommendations']:
-                raise ValueError(f"缺少周期 {horizon} 的推荐")
+            if str(horizon) not in result['horizon_analysis']:
+                raise ValueError(f"缺少周期 {horizon} 的分析")
             
-            horizon_rec = result['horizon_recommendations'][str(horizon)]
-            required_horizon_fields = ['recommendation', 'confidence', 'reasoning']
+            horizon_rec = result['horizon_analysis'][str(horizon)]
+            required_horizon_fields = ['recommendation', 'confidence', 'analysis', 'key_points']
             for field in required_horizon_fields:
                 if field not in horizon_rec:
                     raise ValueError(f"周期 {horizon} 缺少字段: {field}")
@@ -791,10 +797,10 @@ class LLMAnalysisParser:
             'summary': '分析失败，使用默认建议',
             'overall_assessment': '未知',
             'key_factors': ['分析失败'],
-            'horizon_recommendations': {
-                '1': {'recommendation': 'hold', 'confidence': 'low', 'reasoning': '分析失败'},
-                '5': {'recommendation': 'hold', 'confidence': 'low', 'reasoning': '分析失败'},
-                '20': {'recommendation': 'hold', 'confidence': 'low', 'reasoning': '分析失败'}
+            'horizon_analysis': {
+                '1': {'recommendation': 'hold', 'confidence': 'low', 'analysis': '分析失败', 'key_points': []},
+                '5': {'recommendation': 'hold', 'confidence': 'low', 'analysis': '分析失败', 'key_points': []},
+                '20': {'recommendation': 'hold', 'confidence': 'low', 'analysis': '分析失败', 'key_points': []}
             }
         }
 ```
@@ -1293,26 +1299,7 @@ class JSONFormatter:
             'summary': llm_result['summary'],
             'overall_assessment': llm_result['overall_assessment'],
             'key_factors': llm_result['key_factors'],
-            'horizon_analysis': {
-                '1': {
-                    'recommendation': llm_result['horizon_recommendations']['1']['recommendation'],
-                    'confidence': llm_result['horizon_recommendations']['1']['confidence'],
-                    'analysis': llm_result['horizon_recommendations']['1']['reasoning'],
-                    'key_points': []
-                },
-                '5': {
-                    'recommendation': llm_result['horizon_recommendations']['5']['recommendation'],
-                    'confidence': llm_result['horizon_recommendations']['5']['confidence'],
-                    'analysis': llm_result['horizon_recommendations']['5']['reasoning'],
-                    'key_points': []
-                },
-                '20': {
-                    'recommendation': llm_result['horizon_recommendations']['20']['recommendation'],
-                    'confidence': llm_result['horizon_recommendations']['20']['confidence'],
-                    'analysis': llm_result['horizon_recommendations']['20']['reasoning'],
-                    'key_points': []
-                }
-            }
+            'horizon_analysis': llm_result['horizon_analysis']
         }
     
     def _build_trading_strategies(self, strategies: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
@@ -1711,7 +1698,7 @@ def analyze_pair(self, pair: str, data: pd.DataFrame,
     return result
 
 def _use_rule_engine(self, context: Dict[str, Any]) -> Dict[str, Any]:
-    """使用规则引擎（当 LLM 不可用时）"""
+        """使用规则引擎（当 LLM 不可用时）"""
     # 基于 ML 预测生成建议
     majority_trend = context['consistency_analysis']['majority_trend']
     
@@ -1722,17 +1709,23 @@ def _use_rule_engine(self, context: Dict[str, Any]) -> Dict[str, Any]:
     else:
         recommendation = 'hold'
     
+    # 为每个周期生成关键点
+    key_points = [
+        f"{majority_trend}趋势",
+        f"ML预测{majority_trend}",
+        "一致性评分较低"
+    ]
+    
     return {
         'summary': f"{context['pair']} {majority_trend}趋势，建议{recommendation}",
         'overall_assessment': '中性',
         'key_factors': [f"{majority_trend}趋势", "ML预测"],
-        'horizon_recommendations': {
-            '1': {'recommendation': recommendation, 'confidence': 'medium', 'reasoning': '规则引擎'},
-            '5': {'recommendation': recommendation, 'confidence': 'medium', 'reasoning': '规则引擎'},
-            '20': {'recommendation': recommendation, 'confidence': 'medium', 'reasoning': '规则引擎'}
+        'horizon_analysis': {
+            '1': {'recommendation': recommendation, 'confidence': 'medium', 'analysis': f'规则引擎：{majority_trend}趋势', 'key_points': key_points[:2]},
+            '5': {'recommendation': recommendation, 'confidence': 'medium', 'analysis': f'规则引擎：{majority_trend}趋势', 'key_points': key_points[:2]},
+            '20': {'recommendation': recommendation, 'confidence': 'medium', 'analysis': f'规则引擎：{majority_trend}趋势', 'key_points': key_points[:2]}
         }
-    }
-```
+    }```
 
 - [ ] **Step 5: Update main function**
 
@@ -1874,6 +1867,7 @@ git commit -m "refactor: update shell script to remove --horizon parameters"
 
 ```bash
 # 为所有货币对训练所有周期
+# 注意：训练模式需要保留 --horizon 参数
 for pair in EUR JPY AUD GBP CAD NZD; do
     for horizon in 1 5 20; do
         echo "Training ${pair} for ${horizon} days..."
@@ -1943,6 +1937,80 @@ Expected: Should complete successfully and output JSON file
 # 检查最新生成的 JSON 文件
 ls -lt data/predictions/ | head -1
 cat $(ls -t data/predictions/*.json | head -1) | python3 -m json.tool
+```
+
+- [ ] **Step 5: Add JSON Schema validation test**
+
+```python
+# tests/test_json_formatter.py
+def test_json_schema_validation():
+    """测试 JSON Schema 验证"""
+    import json
+    
+    formatter = JSONFormatter()
+    
+    # 创建测试数据
+    context = {
+        'pair': 'EUR',
+        'current_price': 1.1570,
+        'data_date': '2026-03-20',
+        'predictions': {1: {'prediction': 1, 'probability': 0.51, 'confidence': 'medium', 'target_date': '2026-03-21'}},
+        'technical_indicators': {'trend': {}, 'momentum': {}, 'volatility': {}, 'volume': {}, 'price_pattern': {}, 'market_environment': {}},
+        'consistency_analysis': {'score': 1.0, 'interpretation': '完全一致', 'all_same': True, 'majority_trend': '上涨'}
+    }
+    
+    llm_result = {
+        'summary': '测试摘要',
+        'overall_assessment': '中性',
+        'key_factors': ['因素1'],
+        'horizon_analysis': {
+            '1': {'recommendation': 'buy', 'confidence': 'medium', 'analysis': '分析1', 'key_points': ['点1']},
+            '5': {'recommendation': 'hold', 'confidence': 'low', 'analysis': '分析2', 'key_points': ['点2']},
+            '20': {'recommendation': 'sell', 'confidence': 'medium', 'analysis': '分析3', 'key_points': ['点3']}
+        }
+    }
+    
+    strategies = {
+        'short_term': {
+            'name': '短线策略',
+            'horizon': 1,
+            'recommendation': 'buy',
+            'confidence': 'medium',
+            'entry_price': 1.1570,
+            'stop_loss': 1.1470,
+            'take_profit': 1.1670,
+            'risk_reward_ratio': 1.0,
+            'position_size': 'small',
+            'reasoning': '理由'
+        }
+    }
+    
+    # 格式化并验证
+    json_str = formatter.format(context, llm_result, strategies)
+    parsed = json.loads(json_str)
+    
+    # 验证必需部分
+    required_sections = [
+        'metadata', 'ml_predictions', 'consistency_analysis',
+        'llm_analysis', 'trading_strategies', 'technical_indicators',
+        'risk_analysis'
+    ]
+    
+    for section in required_sections:
+        assert section in parsed, f"缺少必需部分: {section}"
+    
+    # 验证元数据字段
+    assert 'pair' in parsed['metadata']
+    assert 'current_price' in parsed['metadata']
+    assert 'horizons' in parsed['metadata']
+    
+    # 验证字段顺序
+    for strategy_name, strategy in parsed['trading_strategies'].items():
+        keys = list(strategy.keys())
+        expected_order = ['name', 'horizon', 'recommendation', 'confidence',
+                         'entry_price', 'stop_loss', 'take_profit',
+                         'risk_reward_ratio', 'position_size', 'reasoning']
+        assert keys == expected_order, f"{strategy_name} 字段顺序不正确"
 ```
 
 Expected: Valid JSON with all required fields
