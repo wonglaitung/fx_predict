@@ -90,6 +90,9 @@ class DataLoader {
           // Get the 5-day prediction as the main prediction for overview
           const mainPrediction = data.ml_predictions?.['5_day'] || data.ml_predictions?.['1_day'] || {};
           
+          // Extract LLM analysis
+          const llmAnalysis = data.llm_analysis || {};
+          
           pairs.push({
             pair: data.metadata?.pair || pairCode,
             pair_name: data.metadata?.pair_name || `${pairCode}/USD`,
@@ -97,7 +100,13 @@ class DataLoader {
             last_update: data.metadata?.data_date || new Date().toISOString(),
             prediction: mainPrediction.prediction_text || 'hold',
             probability: mainPrediction.probability || 0.5,
-            confidence: mainPrediction.confidence || 'unknown'
+            confidence: mainPrediction.confidence || 'unknown',
+            llm_analysis: {
+              summary: llmAnalysis.summary || '',
+              overall_assessment: llmAnalysis.overall_assessment || 'unknown',
+              key_factors: llmAnalysis.key_factors || [],
+              horizon_analysis: llmAnalysis.horizon_analysis || {}
+            }
           });
           seenPairs.add(pairCode);
         }

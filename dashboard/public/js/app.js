@@ -26,28 +26,32 @@ async function refreshData() {
   
   try {
     // Fetch all data in parallel
-    const [pairsData, strategiesData, consistencyData, riskData] = await Promise.all([
+    const [pairsData, strategiesData, riskData] = await Promise.all([
       fetchAPI('/api/v1/pairs'),
       fetchAPI('/api/v1/strategies'),
-      fetchAPI('/api/v1/consistency'),
       fetchAPI('/api/v1/risk')
     ]);
     
     // Update UI
     renderOverviewCards(pairsData.pairs);
-    renderStrategiesTable(strategiesData.strategies);
-    renderConsistencyChart(consistencyData.consistency);
+    renderStrategiesTable(strategiesData.strategies, pairsData.pairs);
     renderRiskWarnings(riskData.risks);
     
-    // Render indicator charts for first pair
+    // Populate pair selector
+    populatePairSelector(pairsData.pairs);
+    
+    // Render indicator charts for first pair (EUR if available, otherwise first pair)
     if (pairsData.pairs && pairsData.pairs.length > 0) {
-      renderIndicatorCharts(pairsData.pairs[0].pair);
+      // Try to find EUR first
+      const eurPair = pairsData.pairs.find(p => p.pair === 'EUR');
+      const selectedPair = eurPair ? eurPair.pair : pairsData.pairs[0].pair;
+      renderIndicatorCharts(selectedPair);
     }
     
     // Update last update time (use data date, not current time)
     if (pairsData.pairs && pairsData.pairs.length > 0) {
       const dataDate = pairsData.pairs[0].last_update;
-      document.getElementById('lastUpdate').textContent = `Last: ${dataDate}`;
+      document.getElementById('lastUpdate').textContent = dataDate;
     }
     
   } catch (error) {
@@ -58,6 +62,47 @@ async function refreshData() {
     refreshBtn.disabled = false;
     refreshBtn.classList.remove('spinning');
   }
+}
+
+// Populate pair selector dropdown
+function populatePairSelector(pairs) {
+  const selector = document.getElementById('pairSelector');
+  if (!selector) return;
+  
+  // Store current selection
+  const currentValue = selector.value;
+  
+  // Clear existing options
+  selector.innerHTML = '<option value="">选择货币对...</option>';
+  
+  // Add options for each pair
+  pairs.forEach(pair => {
+    const option = document.createElement('option');
+    option.value = pair.pair;
+    option.textContent = pair.pair_name;
+    selector.appendChild(option);
+  });
+  
+  // Restore selection if valid, otherwise select EUR or first pair
+  if (currentValue && pairs.find(p => p.pair === currentValue)) {
+    selector.value = currentValue;
+  } else {
+    // Try to select EUR
+    const eurPair = pairs.find(p => p.pair === 'EUR');
+    if (eurPair) {
+      selector.value = 'EUR';
+    } else if (pairs.length > 0) {
+      selector.value = pairs[0].pair;
+    }
+  }
+}
+
+// Handle pair selection change
+function handlePairChange() {
+  const selector = document.getElementById('pairSelector');
+  if (!selector || !selector.value) return;
+  
+  renderIndicatorCharts(selector.value);
 }
 
 // Start auto-refresh
@@ -92,11 +137,38 @@ async function init() {
   // Add event listener to refresh button
   document.getElementById('refreshBtn').addEventListener('click', refreshData);
   
+  // Add event listener to pair selector
+  const pairSelector = document.getElementById('pairSelector');
+  if (pairSelector) {
+    pairSelector.addEventListener('change', handlePairChange);
+  }
+  
+  // Add sidebar close events
+  const closeBtn = document.getElementById('closeSidebar');
+  const overlay = document.getElementById('sidebarOverlay');
+  
+  if (closeBtn) {
+    closeBtn.addEventListener('click', closeAnalysisSidebar);
+  }
+  
+  if (overlay) {
+    overlay.addEventListener('click', closeAnalysisSidebar);
+  }
+  
   // Load initial data
   await refreshData();
   
   // Start auto-refresh
   startAutoRefresh();
+}
+
+// Close analysis sidebar
+function closeAnalysisSidebar() {
+  const sidebar = document.getElementById('analysisSidebar');
+  const overlay = document.getElementById('sidebarOverlay');
+  
+  sidebar.classList.remove('sidebar-open');
+  overlay.classList.remove('sidebar-overlay-open');
 }
 
 // Initialize when DOM is ready

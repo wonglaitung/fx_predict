@@ -136,9 +136,6 @@ def test_build_context():
         'Low': [c * 0.99 for c in close_prices]
     })
     
-    # 设置 Date 为索引（与实际数据格式一致）
-    test_data.set_index('Date', inplace=True)
-    
     builder = MultiHorizonContextBuilder()
     context = builder.build('EUR', test_data)
     
@@ -181,7 +178,7 @@ class MultiHorizonContextBuilder:
         
         # 1. 计算技术指标
         data = self.technical_analyzer.compute_all_indicators(data)
-        self.logger.info(f"技术指标计算完成，共 36 个")
+        self.logger.info(f"技术指标计算完成，共 35 个")
         
         # 2. 获取 ML 预测
         predictions = {}
@@ -203,7 +200,7 @@ class MultiHorizonContextBuilder:
         context = {
             'pair': pair,
             'current_price': float(latest['Close']),
-            'data_date': latest['Date'].strftime('%Y-%m-%d') if 'Date' in latest else datetime.now().strftime('%Y-%m-%d'),
+            'data_date': latest['Date'].strftime('%Y-%m-%d') if 'Date' in latest else (latest.name.strftime('%Y-%m-%d') if hasattr(latest.name, 'strftime') else datetime.now().strftime('%Y-%m-%d')),
             'predictions': predictions,
             'technical_indicators': self._organize_indicators(data),
             'consistency_analysis': consistency_analysis
@@ -909,10 +906,10 @@ def test_generate_strategies():
         'summary': '测试摘要',
         'overall_assessment': '中性',
         'key_factors': ['因素1'],
-        'horizon_recommendations': {
-            '1': {'recommendation': 'buy', 'confidence': 'medium', 'reasoning': '理由1'},
-            '5': {'recommendation': 'hold', 'confidence': 'low', 'reasoning': '理由2'},
-            '20': {'recommendation': 'sell', 'confidence': 'medium', 'reasoning': '理由3'}
+        'horizon_analysis': {
+            '1': {'recommendation': 'buy', 'confidence': 'medium', 'analysis': '分析1', 'key_points': ['关键点1']},
+            '5': {'recommendation': 'hold', 'confidence': 'low', 'analysis': '分析2', 'key_points': ['关键点2']},
+            '20': {'recommendation': 'sell', 'confidence': 'medium', 'analysis': '分析3', 'key_points': ['关键点3']}
         }
     }
     
@@ -1002,7 +999,7 @@ class TradingStrategyGenerator:
                 'take_profit': price_levels['take_profit'],
                 'risk_reward_ratio': price_levels['risk_reward_ratio'],
                 'position_size': position_size,
-                'reasoning': llm_rec['reasoning']
+                'reasoning': llm_rec['analysis']  # 使用 analysis 字段
             }
         
         self.logger.info("交易方案生成完成")
@@ -2113,7 +2110,7 @@ git push origin v2.0.0
 2. ✅ LLM 能够生成三个周期的独立建议和分析
 3. ✅ 输出格式为标准 JSON，便于控制面板读取
 4. ✅ 为每个周期生成独立的交易执行方案
-5. ✅ 包含完整的 36 个技术指标
+5. ✅ 包含完整的 35 个技术指标
 6. ✅ 实现双重验证机制（LLM + ML）
 7. ✅ 移除单周期预测功能，系统默认使用三个周期
 8. ✅ 完善的错误处理和降级策略

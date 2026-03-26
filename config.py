@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 import logging
 
@@ -44,7 +45,8 @@ PATHS = {
 
 # 模型配置
 MODEL_CONFIG = {
-    'horizon': 20,  # 预测周期（天）
+    'horizons': [1, 5, 20],  # 支持的预测周期列表（天）
+    'horizon': 20,  # 默认预测周期（天），保持向后兼容
     'high_confidence_threshold': 0.60,  # 高置信度阈值
     'catboost_params': {
         'iterations': 1000,
@@ -94,6 +96,7 @@ INDICATOR_CONFIG = {
 
 # 数据配置
 DATA_CONFIG = {
+    'data_file': 'FXRate_20260320.xlsx',  # 默认数据文件路径
     'supported_pairs': ['EUR', 'JPY', 'GBP', 'AUD', 'CAD', 'CHF', 'NZD'],
     'pair_symbols': {
         'EUR': 'EURUSD',
@@ -140,6 +143,16 @@ def validate_config():
     if DATA_CONFIG['min_data_points'] < 50:
         logger.error("最小数据点数不能少于50")
         return False
+
+    # 验证数据文件配置
+    if not DATA_CONFIG.get('data_file'):
+        logger.error("数据文件路径不能为空")
+        return False
+
+    # 检查数据文件是否存在（可选，因为可能是命令行参数）
+    data_file = DATA_CONFIG['data_file']
+    if data_file and not Path(data_file).exists():
+        logger.warning(f"默认数据文件不存在: {data_file}，请使用 --data-file 参数指定")
 
     # 验证技术指标配置
     if not INDICATOR_CONFIG:

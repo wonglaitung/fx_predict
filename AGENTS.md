@@ -27,6 +27,46 @@ cp .env.example .env
 # 编辑 .env 文件，填入 QWEN_API_KEY
 ```
 
+### 配置数据文件
+
+系统支持三种方式配置数据文件路径，优先级从高到低：
+
+**1. 命令行参数（最高优先级）**
+
+```bash
+# 使用指定的数据文件
+./run_full_pipeline.sh --data-file FXRate_20260326.xlsx
+
+# Python 模块
+python3 -m ml_services.fx_trading_model --mode train --pair EUR --data-file FXRate_20260326.xlsx
+python3 -m comprehensive_analysis --data-file FXRate_20260326.xlsx
+```
+
+**2. 环境变量（中等优先级）**
+
+在 `.env` 文件中配置：
+
+```bash
+# 编辑 .env 文件，添加数据文件路径
+DATA_FILE=FXRate_20260326.xlsx
+```
+
+**3. 配置文件（最低优先级）**
+
+在 `config.py` 中修改默认值：
+
+```python
+DATA_CONFIG = {
+    'data_file': 'FXRate_20260326.xlsx',  # 修改这里
+    # ...
+}
+```
+
+**使用建议：**
+- 更新数据时，推荐使用命令行参数 `--data-file`，无需修改代码
+- 如果经常使用同一个数据文件，可以在 `.env` 文件中配置
+- 修改 `config.py` 中的默认值仅用于永久性更改
+
 ### 一键运行完整流程（推荐）
 
 ```bash
@@ -458,7 +498,39 @@ logging.basicConfig(
 
 ## 常见问题
 
-### 1. 数据文件格式
+### 1. 如何更新数据文件
+
+**问题**：数据文件过期了，如何使用新的数据文件？
+
+**解决方案**：
+
+方式1：使用命令行参数（推荐）
+```bash
+# 运行完整流程，指定新的数据文件
+./run_full_pipeline.sh --data-file FXRate_20260326.xlsx
+
+# 单独运行模块
+python3 -m ml_services.fx_trading_model --mode train --pair EUR --data-file FXRate_20260326.xlsx
+python3 -m comprehensive_analysis --data-file FXRate_20260326.xlsx
+```
+
+方式2：在 .env 文件中配置
+```bash
+# 编辑 .env 文件
+DATA_FILE=FXRate_20260326.xlsx
+```
+
+方式3：修改 config.py 中的默认值
+```python
+DATA_CONFIG = {
+    'data_file': 'FXRate_20260326.xlsx',  # 修改这里
+    # ...
+}
+```
+
+**优先级**：命令行参数 > 环境变量 > 配置文件默认值
+
+### 2. 数据文件格式
 
 Excel 文件必须满足：
 - 工作表名称为货币对代码（如 EUR、JPY）

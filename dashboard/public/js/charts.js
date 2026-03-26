@@ -21,7 +21,7 @@ function generateTrendData(baseValue, days = 30, volatility = 0.01) {
 }
 
 // Render consistency chart (radar chart)
-function renderConsistencyChart(consistencyData) {
+function renderConsistencyChart(consistencyData, pairsData) {
   const ctx = document.getElementById('consistencyChart');
   if (!ctx) return;
   
@@ -35,16 +35,30 @@ function renderConsistencyChart(consistencyData) {
   const labels = ['1d', '5d', '20d', 'Overall'];
   const datasets = [];
   
+  // Create a map of pair code to pair name
+  const pairNameMap = {};
+  if (pairsData && Array.isArray(pairsData)) {
+    pairsData.forEach(p => {
+      pairNameMap[p.pair] = p.pair_name || p.pair;
+    });
+  }
+  
   pairs.forEach((pair, index) => {
     const data = consistencyData[pair];
-    const score = data.score || 0;
+    
+    // Get scores by horizon (use prediction probabilities)
+    const scoresByHorizon = data.scores_by_horizon || {};
+    const score1d = scoresByHorizon['1d'] || data.score || 0;
+    const score5d = scoresByHorizon['5d'] || data.score || 0;
+    const score20d = scoresByHorizon['20d'] || data.score || 0;
+    const scoreOverall = scoresByHorizon['overall'] || data.score || 0;
     
     // Generate radar data
     const radarData = [
-      score, // 1d
-      score, // 5d
-      score, // 20d
-      score  // Overall
+      score1d,  // 1d
+      score5d,  // 5d
+      score20d, // 20d
+      scoreOverall // Overall
     ];
     
     // Use different colors for each pair
@@ -52,7 +66,7 @@ function renderConsistencyChart(consistencyData) {
     const color = colors[index % colors.length];
     
     datasets.push({
-      label: pair,
+      label: pairNameMap[pair] || pair,
       data: radarData,
       backgroundColor: color + '33', // 20% opacity
       borderColor: color,
@@ -110,12 +124,6 @@ async function renderIndicatorCharts(pair = 'EUR') {
     const response = await fetch(`/api/v1/indicators/${pair}`);
     const data = await response.json();
     const indicators = data.indicators || {};
-    
-    // Update current pair display
-    const pairElement = document.getElementById('currentPair');
-    if (pairElement) {
-      pairElement.textContent = pair;
-    }
     
     renderPriceChart(indicators, pair);
     renderIndicatorValueChart(indicators, pair);
