@@ -13,11 +13,14 @@ cd "${SCRIPT_DIR}"
 
 set -e  # 遇到错误立即退出
 
-# 默认参数
-DATA_FILE="FXRate_20260320.xlsx"
-HORIZON=20
+# 加载 .env 文件（如果存在）
+if [ -f .env ]; then
+    export $(cat .env | grep -v '^#' | xargs)
+fi
+
+# 默认参数（环境变量优先，然后是默认值）
+DATA_FILE="${DATA_FILE:-FXRate_20260320.xlsx}"
 USE_LLM=true
-LLM_LENGTH="long"
 SKIP_TRAINING=false
 SKIP_PREDICTION=false
 SKIP_ANALYSIS=false
@@ -60,17 +63,24 @@ print_usage() {
   $0 [选项]
 
 选项:
-  --data-file FILE       数据文件路径 (默认: FXRate_20260320.xlsx)
-  --horizon N            预测周期（天） (默认: 20)
+  --data-file FILE       数据文件路径 (优先级最高，覆盖环境变量和默认值)
   --no-llm               禁用大模型分析 (默认启用)
-  --llm-length LENGTH    大模型分析长度: short|medium|long (默认: long)
   --skip-training        跳过训练步骤
   --skip-prediction      跳过预测步骤
   --skip-analysis        跳过分析步骤
   -h, --help             显示帮助信息
 
+数据文件配置优先级:
+  1. 命令行参数 --data-file (最高优先级)
+  2. 环境变量 DATA_FILE (在 .env 文件中配置)
+  3. config.py 中的默认值 (最低优先级)
+
+默认行为:
+  - 训练/预测所有周期（1天、5天、20天）
+  - 启用大模型分析
+
 示例:
-  # 运行完整流程（训练 + 预测 + 分析）
+  # 运行完整流程（训练 + 预测 + 分析，所有周期）
   $0
 
   # 跳过训练，只进行预测和分析
@@ -79,11 +89,11 @@ print_usage() {
   # 跳过大模型分析
   $0 --no-llm
 
-  # 使用 short 长度的大模型分析
-  $0 --llm-length short
+  # 指定数据文件（命令行参数，最高优先级）
+  $0 --data-file FXRate_20260326.xlsx
 
-  # 指定数据文件
-  $0 --data_file FXRate_20260320.xlsx
+  # 在 .env 文件中配置数据文件路径
+  # 添加: DATA_FILE=FXRate_20260326.xlsx
 EOF
     exit 0
 }
@@ -91,29 +101,31 @@ EOF
 # 训练所有货币对的模型
 train_all_pairs() {
     print_header "开始训练所有货币对模型"
-    
+
     local start_time=$(date +%s)
-    
+
     # 货币对列表
     local pairs=("EUR" "JPY" "AUD" "GBP" "CAD" "NZD")
-    
+
     for pair in "${pairs[@]}"; do
-        print_info "训练 ${pair} 模型..."
-        
+        print_info "训练 ${pair} 模型（所有周期）..."
+
+        # 训练所有周期的模型
         if python3 -m ml_services.fx_trading_model \
             --mode train \
-            --pair "$pair"; then
-            print_success "${pair} 模型训练完成"
+            --pair "$pair" \
+            --all-horizons; then
+            print_success "${pair} 所有周期模型训练完成"
         else
             print_error "${pair} 模型训练失败"
         fi
-        
+
         echo ""
     done
-    
+
     local end_time=$(date +%s)
     local duration=$((end_time - start_time))
-    
+
     print_header "所有模型训练完成"
     print_info "总耗时: ${duration} 秒"
 }
@@ -121,29 +133,31 @@ train_all_pairs() {
 # 对所有货币对进行预测
 predict_all_pairs() {
     print_header "开始所有货币对预测"
-    
+
     local start_time=$(date +%s)
-    
+
     # 货币对列表
     local pairs=("EUR" "JPY" "AUD" "GBP" "CAD" "NZD")
-    
+
     for pair in "${pairs[@]}"; do
-        print_info "预测 ${pair}..."
-        
+        print_info "预测 ${pair}（所有周期）..."
+
+        # 预测所有周期
         if python3 -m ml_services.fx_trading_model \
             --mode predict \
-            --pair "$pair"; then
-            print_success "${pair} 预测完成"
+            --pair "$pair" \
+            --all-horizons; then
+            print_success "${pair} 所有周期预测完成"
         else
             print_error "${pair} 预测失败"
         fi
-        
+
         echo ""
     done
-    
+
     local end_time=$(date +%s)
     local duration=$((end_time - start_time))
-    
+
     print_header "所有预测完成"
     print_info "总耗时: ${duration} 秒"
 }
@@ -151,20 +165,18 @@ predict_all_pairs() {
 # 对所有货币对进行综合分析
 analyze_all_pairs() {
     print_header "开始所有货币对综合分析"
-    
+
     local start_time=$(date +%s)
-    
+
     # 构建命令参数
     local llm_args=""
     if [ "$USE_LLM" = false ]; then
         llm_args="--no-llm"
-    else
-        llm_args="--llm-length $LLM_LENGTH"
     fi
-    
+
     # 分析所有货币对
     print_info "运行综合分析（6个货币对）..."
-    
+
     if python3 -m comprehensive_analysis \
         --data_file "$DATA_FILE" \
         $llm_args; then
@@ -172,10 +184,10 @@ analyze_all_pairs() {
     else
         print_error "综合分析失败"
     fi
-    
+
     local end_time=$(date +%s)
     local duration=$((end_time - start_time))
-    
+
     print_info "分析耗时: ${duration} 秒"
 }
 
@@ -183,40 +195,40 @@ analyze_all_pairs() {
 run_full_pipeline() {
     local script_start_time=$(date)
     local script_start_seconds=$(date +%s)
-    
+
     print_header "外汇智能分析系统 - 完整流程"
     print_info "开始时间: $script_start_time"
     print_info "数据文件: $DATA_FILE"
-    print_info "预测周期: $HORIZON 天"
-    print_info "大模型: $([ "$USE_LLM" = true ] && echo "启用 ($LLM_LENGTH)" || echo "禁用")"
+    print_info "预测周期: 所有周期 (1天、5天、20天)"
+    print_info "大模型: $([ "$USE_LLM" = true ] && echo "启用" || echo "禁用")"
     echo ""
-    
+
     # 1. 训练
     if [ "$SKIP_TRAINING" = false ]; then
         train_all_pairs
     else
         print_warning "跳过训练步骤"
     fi
-    
+
     # 2. 预测
     if [ "$SKIP_PREDICTION" = false ]; then
         predict_all_pairs
     else
         print_warning "跳过预测步骤"
     fi
-    
+
     # 3. 分析
     if [ "$SKIP_ANALYSIS" = false ]; then
         analyze_all_pairs
     else
         print_warning "跳过分析步骤"
     fi
-    
+
     # 汇总
     local script_end_time=$(date)
     local script_end_seconds=$(date +%s)
     local total_duration=$((script_end_seconds - script_start_seconds))
-    
+
     print_header "完整流程完成"
     print_info "结束时间: $script_end_time"
     print_info "总耗时: $total_duration 秒"
@@ -230,17 +242,9 @@ parse_args() {
                 DATA_FILE="$2"
                 shift 2
                 ;;
-            --horizon)
-                HORIZON="$2"
-                shift 2
-                ;;
             --no-llm)
                 USE_LLM=false
                 shift
-                ;;
-            --llm-length)
-                LLM_LENGTH="$2"
-                shift 2
                 ;;
             --skip-training)
                 SKIP_TRAINING=true
