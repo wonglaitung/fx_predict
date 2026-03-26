@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FX Predict Dashboard</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="header-content">
+      <h1 class="header-title">📊 FX Predict Dashboard</h1>
+      <div class="header-controls">
+        <button id="refreshBtn" class="refresh-btn">🔄 Refresh</button>
+        <span id="lastUpdate" class="last-update">Last: --</span>
+        <span id="autoRefresh" class="auto-refresh">Auto-refresh: 5min</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <!-- Overview Cards -->
+    <section class="overview-section">
+      <h2 class="section-title">货币对概览</h2>
+      <div id="overviewCards" class="overview-cards">
+        <!-- Cards will be populated by JavaScript -->
+      </div>
+    </section>
+
+    <!-- Trading Strategies Table -->
+    <section class="strategies-section">
+      <h2 class="section-title">交易策略</h2>
+      <div class="table-container">
+        <table id="strategiesTable" class="strategies-table">
+          <thead>
+            <tr>
+              <th>货币对</th>
+              <th>周期</th>
+              <th>建议</th>
+              <th>置信度</th>
+              <th>入场价</th>
+              <th>止损</th>
+              <th>止盈</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Rows will be populated by JavaScript -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Consistency Analysis Chart -->
+    <section class="consistency-section">
+      <h2 class="section-title">一致性分析</h2>
+      <div class="chart-container">
+        <canvas id="consistencyChart"></canvas>
+      </div>
+    </section>
+
+    <!-- Risk Warning Panel -->
+    <section class="risk-section">
+      <h2 class="section-title">风险提示</h2>
+      <div id="riskWarnings" class="risk-warnings">
+        <!-- Warnings will be populated by JavaScript -->
+      </div>
+    </section>
+
+    <!-- Technical Indicators Chart -->
+    <section class="indicators-section">
+      <h2 class="section-title">技术指标</h2>
+      <div class="charts-row">
+        <div class="chart-container">
+          <h3 class="chart-title">价格走势 + 均线</h3>
+          <div class="chart-canvas-wrapper">
+            <canvas id="priceChart"></canvas>
+          </div>
+        </div>
+        <div class="chart-container">
+          <h3 class="chart-title">技术指标数值</h3>
+          <div class="chart-canvas-wrapper">
+            <canvas id="indicatorChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Scripts -->
+  <script src="js/app.js"></script>
+  <script src="js/components.js"></script>
+  <script src="js/charts.js"></script>
+</body>
+</html>
