@@ -78,14 +78,19 @@ Excel 数据
         20: HorizonPrediction       # 20 天预测结果
     },
     'technical_indicators': {       # 完整技术指标（35个）
-        'trend': {...},             # 趋势类指标（11个）
-        'momentum': {...},          # 动量类指标（7个）
+        'trend': {...},             # 趋势类指标（16个）
+        'momentum': {...},          # 动量类指标（6个）
         'volatility': {...},        # 波动类指标（6个）
         'volume': {...},            # 成交量类指标（1个）
-        'price_pattern': {...},     # 价格形态指标（5个）
+        'price_pattern': {...},     # 价格形态指标（4个）
         'market_environment': {...} # 市场环境指标（2个）
     },
-    'consistency_score': float      # 一致性评分 (0-1)
+    'consistency_analysis': {       # 一致性分析
+        'score': float,             # 一致性评分 (0-1)
+        'interpretation': str,      # 解释说明
+        'all_same': bool,           # 是否全部相同
+        'majority_trend': str       # 多数趋势
+    }
 }
 ```
 
@@ -108,20 +113,21 @@ Excel 数据
 
 大模型分析结果。
 
+**说明**：LLM 生成一个综合分析报告（500字以上），包含整体评估、技术面分析、ML 预测验证等。LLM 同时为每个周期提供独立的建议和简要分析。
+
 ```python
 {
-    'summary': str,                 # 综合摘要
+    'summary': str,                 # 综合摘要（50-100字）
     'overall_assessment': str,      # 整体评估
-    'key_factors': list,           # 关键因素列表
-    'horizon_analysis': {
-        1: {                       # 1 天分析
+    'key_factors': list,           # 关键因素列表（3-5个）
+    'horizon_recommendations': {
+        1: {                       # 1 天建议
             'recommendation': str,  # buy/sell/hold
             'confidence': str,
-            'analysis': str,       # 详细分析文本
-            'key_points': list     # 关键点
+            'reasoning': str       # 简要理由（1-2句话）
         },
-        5: {...},                  # 5 天分析
-        20: {...}                  # 20 天分析
+        5: {...},                  # 5 天建议
+        20: {...}                  # 20 天建议
     }
 }
 ```
@@ -254,8 +260,8 @@ Excel 数据
       "recommendation": "sell",
       "confidence": "medium",
       "entry_price": 1.1570,
-      "take_profit": 1.1370,
       "stop_loss": 1.1770,
+      "take_profit": 1.1370,
       "risk_reward_ratio": 1.0,
       "position_size": "medium",
       "reasoning": "长期趋势向下，逢高做空"
@@ -451,6 +457,75 @@ class TradingStrategyGenerator:
         pass
 ```
 
+#### 3.1.5 JSONFormatter
+
+**职责**：格式化输出为标准 JSON 格式
+
+**输入**：
+- MultiHorizonContext 对象
+- LLMAnalysisResult 对象
+- 交易方案字典
+
+**输出**：标准 JSON 字符串
+
+**功能**：
+1. 构建完整的 JSON 输出结构
+2. 验证 JSON 格式正确性
+3. 写入文件或返回字符串
+4. 验证所有必需字段
+
+**关键方法**：
+```python
+class JSONFormatter:
+    def format(self, context: MultiHorizonContext,
+               llm_result: LLMAnalysisResult,
+               strategies: dict) -> str:
+        """格式化输出为 JSON"""
+        pass
+    
+    def write_to_file(self, json_str: str, pair: str) -> str:
+        """写入 JSON 文件"""
+        pass
+    
+    def validate_schema(self, data: dict) -> bool:
+        """验证 JSON Schema"""
+        pass
+```
+
+**职责**：生成交易执行方案
+
+**输入**：
+- LLMAnalysisResult 对象
+- MultiHorizonContext 对象
+
+**输出**：三个周期的交易方案字典
+
+**功能**：
+1. 解析 LLM 的交易建议
+2. 计算入场价、止损位、止盈位
+3. 计算风险回报比
+4. 提供仓位管理建议
+
+**关键方法**：
+```python
+class TradingStrategyGenerator:
+    def generate(self, llm_result: LLMAnalysisResult, 
+                 context: MultiHorizonContext) -> dict:
+        """生成交易方案"""
+        pass
+    
+    def _calculate_price_levels(self, horizon: int, 
+                                 current_price: float,
+                                 atr: float) -> dict:
+        """计算价格水平"""
+        pass
+    
+    def _determine_position_size(self, confidence: str, 
+                                   risk_level: str) -> str:
+        """确定仓位大小"""
+        pass
+```
+
 ### 3.2 重构模块
 
 #### 3.2.1 FXTradingModel
@@ -520,9 +595,14 @@ class ComprehensiveAnalyzer:
 #### 3.2.3 命令行接口
 
 **变更**：
-- 移除：`--horizon` 参数
+- 移除：`--horizon` 参数（系统默认使用三个周期）
 - 移除：`--all-horizons` 参数（成为默认行为）
 - 简化：参数列表，减少用户选择负担
+
+**向后兼容说明**：
+- 当前代码中的 `--horizon` 参数将被移除
+- 用户无需指定周期，系统自动使用三个周期（1天、5天、20天）
+- 训练和预测默认处理所有三个周期
 
 **变更后的参数**：
 ```bash
@@ -678,23 +758,94 @@ for horizon in [1, 5, 20]:
 - JSON 解析失败
 - 必需字段缺失
 - 字段值不在预期范围
+- LLM 建议与 ML 预测严重冲突
 
 **降级方案**：
 ```python
-def _validate_and_fix_llm_output(self, result: dict) -> dict:
+def _validate_and_fix_llm_output(self, result: dict, 
+                                  ml_predictions: dict) -> dict:
     """验证并修复 LLM 输出"""
+    # 1. 验证必需字段
     if 'recommendation' not in result:
-        result['recommendation'] = self._infer_recommendation(result)
+        result['recommendation'] = self._infer_from_ml(ml_predictions)
+        result['recommendation_source'] = 'ml_inference'
+    
     if 'confidence' not in result:
         result['confidence'] = 'low'
-    # 其他字段的修复逻辑
+    
+    # 2. 验证字段值
+    valid_recommendations = ['buy', 'sell', 'hold']
+    if result['recommendation'] not in valid_recommendations:
+        result['recommendation'] = 'hold'
+        result['recommendation_source'] = 'default'
+    
+    valid_confidences = ['high', 'medium', 'low']
+    if result['confidence'] not in valid_confidences:
+        result['confidence'] = 'low'
+    
+    # 3. 处理 LLM 建议与 ML 预测冲突
+    if self._has_severe_conflict(result, ml_predictions):
+        result = self._apply_ml_priority(result, ml_predictions)
+        result['conflict_resolved'] = True
+        result['resolution_method'] = 'ml_priority'
+    
+    # 4. 降低整体置信度
+    if 'recommendation_source' in result:
+        result['confidence'] = self._downgrade_confidence(result['confidence'])
+    
     return result
+
+def _infer_from_ml(self, ml_predictions: dict) -> str:
+    """从 ML 预测推断建议"""
+    # 使用 ML 概率和硬性约束生成建议
+    majority_vote = self._get_majority_trend(ml_predictions)
+    if majority_vote == 1:
+        return 'buy'
+    elif majority_vote == 0:
+        return 'sell'
+    else:
+        return 'hold'
+
+def _has_severe_conflict(self, llm_result: dict, 
+                          ml_predictions: dict) -> bool:
+    """检测 LLM 建议与 ML 预测是否严重冲突"""
+    # 如果 LLM 建议 buy，但 ML 平均预测概率 < 0.45
+    if llm_result['recommendation'] == 'buy':
+        avg_prob = self._get_average_probability(ml_predictions, 1)
+        return avg_prob < 0.45
+    
+    # 如果 LLM 建议 sell，但 ML 平均预测概率 > 0.55
+    if llm_result['recommendation'] == 'sell':
+        avg_prob = self._get_average_probability(ml_predictions, 1)
+        return avg_prob > 0.55
+    
+    return False
+
+def _apply_ml_priority(self, llm_result: dict, 
+                       ml_predictions: dict) -> dict:
+    """应用 ML 优先策略"""
+    # 使用 ML 预测 + 硬性约束生成建议
+    recommendation = self._infer_from_ml(ml_predictions)
+    llm_result['recommendation'] = recommendation
+    llm_result['reasoning'] = f"LLM 输出质量不佳，使用 ML 预测：{recommendation}"
+    return llm_result
+
+def _downgrade_confidence(self, confidence: str) -> str:
+    """降低置信度"""
+    if confidence == 'high':
+        return 'medium'
+    elif confidence == 'medium':
+        return 'low'
+    else:
+        return 'low'
 ```
 
 **输出影响**：
-- 使用推断值填充缺失字段
-- 降低置信度评级
-- 记录警告日志
+- 使用 ML 预测填充缺失建议
+- 处理冲突时优先使用 ML 预测
+- 降低整体置信度评级
+- 在输出中标记建议来源（LLM/ML/Default）
+- 提供降级原因说明
 
 ## 6. 测试策略
 
@@ -790,6 +941,49 @@ def test_generate_strategies():
         assert 'stop_loss' in strategy
         assert 'take_profit' in strategy
         assert 'risk_reward_ratio' in strategy
+        assert 'position_size' in strategy
+        assert 'reasoning' in strategy
+
+def test_position_size_mapping():
+    """测试仓位大小映射"""
+    generator = TradingStrategyGenerator()
+    
+    # 测试不同置信度对应的仓位
+    test_cases = [
+        ('high', 'large'),
+        ('medium', 'medium'),
+        ('low', 'small'),
+        ('none', 'none')
+    ]
+    
+    for confidence, expected_size in test_cases:
+        position_size = generator._determine_position_size(confidence, 'low')
+        assert position_size == expected_size
+
+def test_risk_reward_ratio():
+    """测试风险回报比计算"""
+    generator = TradingStrategyGenerator()
+    
+    # 测试价格水平计算
+    current_price = 1.1570
+    atr = 0.0100
+    
+    price_levels = generator._calculate_price_levels(1, current_price, atr)
+    
+    # 验证风险回报比
+    entry = price_levels['entry_price']
+    stop_loss = price_levels['stop_loss']
+    take_profit = price_levels['take_profit']
+    
+    if price_levels['recommendation'] == 'buy':
+        risk = entry - stop_loss
+        reward = take_profit - entry
+    else:
+        risk = stop_loss - entry
+        reward = entry - take_profit
+    
+    ratio = reward / risk if risk > 0 else 0
+    assert abs(ratio - 1.0) < 0.1  # 风险回报比应该接近 1:1
 ```
 
 ### 6.2 集成测试
@@ -854,6 +1048,109 @@ def test_llm_analysis():
     assert '1 天' in prompt
     assert '5 天' in prompt
     assert '20 天' in prompt
+```
+
+#### 6.2.4 JSON 输出测试
+
+```python
+def test_json_serialization():
+    """测试 JSON 序列化"""
+    analyzer = ComprehensiveAnalyzer()
+    result = analyzer.analyze_pair('EUR', test_data, use_llm=False)
+    
+    # 序列化
+    import json
+    json_str = json.dumps(result, ensure_ascii=False)
+    
+    # 反序列化
+    parsed = json.loads(json_str)
+    
+    # 验证数据完整性
+    assert parsed == result
+
+def test_json_file_writing():
+    """测试 JSON 文件写入"""
+    analyzer = ComprehensiveAnalyzer()
+    result = analyzer.analyze_pair('EUR', test_data, use_llm=False)
+    
+    # 写入文件
+    formatter = JSONFormatter()
+    file_path = formatter.write_to_file(json.dumps(result), 'EUR')
+    
+    # 验证文件存在
+    import os
+    assert os.path.exists(file_path)
+    
+    # 读取文件
+    with open(file_path, 'r') as f:
+        content = f.read()
+    
+    # 验证 JSON 格式
+    parsed = json.loads(content)
+    assert 'metadata' in parsed
+    
+    # 清理
+    os.remove(file_path)
+
+def test_json_schema_validation():
+    """测试 JSON Schema 验证"""
+    analyzer = ComprehensiveAnalyzer()
+    result = analyzer.analyze_pair('EUR', test_data, use_llm=False)
+    
+    # 验证必需字段
+    required_sections = [
+        'metadata', 'ml_predictions', 'consistency_analysis',
+        'llm_analysis', 'trading_strategies', 'technical_indicators',
+        'risk_analysis'
+    ]
+    
+    for section in required_sections:
+        assert section in result
+    
+    # 验证元数据字段
+    assert 'pair' in result['metadata']
+    assert 'current_price' in result['metadata']
+    assert 'data_date' in result['metadata']
+    
+    # 验证 ML 预测字段
+    assert '1_day' in result['ml_predictions']
+    assert '5_day' in result['ml_predictions']
+    assert '20_day' in result['ml_predictions']
+    
+    # 验证交易策略字段
+    assert 'short_term' in result['trading_strategies']
+    assert 'medium_term' in result['trading_strategies']
+    assert 'long_term' in result['trading_strategies']
+    
+    # 验证每个策略的字段顺序
+    for strategy_name, strategy in result['trading_strategies'].items():
+        keys = list(strategy.keys())
+        expected_order = ['name', 'horizon', 'recommendation', 'confidence',
+                         'entry_price', 'stop_loss', 'take_profit',
+                         'risk_reward_ratio', 'position_size', 'reasoning']
+        assert keys == expected_order, f"{strategy_name} 字段顺序不正确"
+
+def test_json_output_consistency():
+    """测试所有货币对的输出格式一致性"""
+    analyzer = ComprehensiveAnalyzer()
+    pairs = ['EUR', 'JPY', 'AUD']
+    
+    results = []
+    for pair in pairs:
+        data = load_test_data(pair)
+        result = analyzer.analyze_pair(pair, data, use_llm=False)
+        results.append(result)
+    
+    # 验证所有结果的结构相同
+    first_keys = set(results[0].keys())
+    for result in results[1:]:
+        assert set(result.keys()) == first_keys
+    
+    # 验证所有结果的字段相同
+    for section in results[0].keys():
+        first_section_keys = set(results[0][section].keys())
+        for result in results[1:]:
+            assert set(result[section].keys()) == first_section_keys
 ```
 
 ### 6.3 数据验证测试
@@ -1159,9 +1456,16 @@ python3 -m ml_services.fx_trading_model --mode predict --pair EUR
 
 | 限制 | 说明 | 影响 |
 |-----|------|------|
-| LLM 调用延迟 | 1-5 秒 | 分析时间增加 |
+| LLM 调用延迟 | 1-10 秒（含网络延迟） | 分析时间增加 |
 | 内存使用 | 50-100 MB | 需要足够内存 |
 | 并发处理 | 最多 3 个货币对 | 批量处理时间增加 |
+| 完整分析时间 | 30-60 秒（含 LLM 调用） | 包含网络延迟 |
+
+**性能优化策略**：
+- 实现 ML 模型并行调用（同时调用三个周期）
+- 缓存技术指标计算结果
+- 优化 LLM Prompt 减少 token 使用
+- 添加性能监控和告警机制
 
 ### 10.3 数据限制
 
@@ -1192,7 +1496,7 @@ python3 -m ml_services.fx_trading_model --mode predict --pair EUR
 
 ### 11.3 性能标准
 
-- ✅ 完整分析时间 ≤ 30 秒
+- ✅ 完整分析时间 ≤ 60 秒（含 LLM 调用和网络延迟）
 - ✅ LLM 调用成功率 ≥ 90%
 - ✅ 内存使用 ≤ 100 MB
 - ✅ 预测成功率 ≥ 95%
@@ -1224,15 +1528,14 @@ python3 -m ml_services.fx_trading_model --mode predict --pair EUR
 
 ### 13.1 技术指标清单（35 个）
 
-**趋势类指标（11 个）**：
-- SMA5, SMA10, SMA20, SMA50, SMA120
-- EMA5, EMA10, EMA12, EMA20, EMA26
-- MACD, MACD_Signal, MACD_Hist
-- ADX, DI_Plus, DI_Minus
+**趋势类指标（16 个）**：
+- SMA5, SMA10, SMA20, SMA50, SMA120 (5个)
+- EMA5, EMA10, EMA12, EMA20, EMA26 (5个)
+- MACD, MACD_Signal, MACD_Hist (3个)
+- ADX, DI_Plus, DI_Minus (3个)
 
-**动量类指标（7 个）**：
-- RSI14, K, D, J
-- WilliamsR_14, CCI20
+**动量类指标（6 个）**：
+- RSI14, K, D, J, WilliamsR_14, CCI20
 
 **波动类指标（6 个）**：
 - ATR14, BB_Upper, BB_Middle, BB_Lower
@@ -1241,7 +1544,7 @@ python3 -m ml_services.fx_trading_model --mode predict --pair EUR
 **成交量类指标（1 个）**：
 - OBV
 
-**价格形态指标（5 个）**：
+**价格形态指标（4 个）**：
 - Price_Percentile_120, Bias_5, Bias_10, Bias_20
 - Trend_Slope_20
 
