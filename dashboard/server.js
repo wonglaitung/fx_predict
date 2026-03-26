@@ -18,10 +18,55 @@ app.use(express.json());
 app.use(express.static('public'));
 app.use(requestLogger);
 
+// DataCache class
+class DataCache {
+  constructor(ttl = 300000) { // Default 5 minutes
+    this.cache = new Map();
+    this.ttl = ttl;
+  }
+
+  get(key) {
+    const item = this.cache.get(key);
+    if (!item) return null;
+
+    if (Date.now() - item.timestamp > this.ttl) {
+      this.cache.delete(key);
+      logInfo(`Cache expired for key: ${key}`);
+      return null;
+    }
+
+    logInfo(`Cache hit for key: ${key}`);
+    return item.data;
+  }
+
+  set(key, data) {
+    this.cache.set(key, {
+      data,
+      timestamp: Date.now()
+    });
+    logInfo(`Cache set for key: ${key}`);
+  }
+
+  clear() {
+    this.cache.clear();
+    logInfo('Cache cleared');
+  }
+
+  clearByPattern(pattern) {
+    for (const key of this.cache.keys()) {
+      if (key.includes(pattern)) {
+        this.cache.delete(key);
+        logInfo(`Cache cleared for pattern: ${pattern}`);
+      }
+    }
+  }
+}
+
 // DataLoader class
 class DataLoader {
-  constructor(dataDir) {
+  constructor(dataDir, cache) {
     this.dataDir = dataDir;
+    this.cache = cache;
   }
 
   loadAllPairs() {
@@ -77,7 +122,8 @@ class DataLoader {
   }
 }
 
-const dataLoader = new DataLoader(process.env.DATA_DIR || '../data/predictions');
+const dataCache = new DataCache(parseInt(process.env.CACHE_TTL) || 300000);
+const dataLoader = new DataLoader(process.env.DATA_DIR || '../data/predictions', dataCache);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -91,7 +137,13 @@ app.get('/health', (req, res) => {
 // Get all pairs
 app.get('/api/v1/pairs', (req, res) => {
   try {
+    const cached = dataCache.get('pairs');
+    if (cached) {
+      return res.json({ pairs: cached });
+    }
+
     const pairs = dataLoader.loadAllPairs();
+    dataCache.set('pairs', pairs);
     logInfo(`Loaded ${pairs.length} pairs`);
     res.json({ pairs });
   } catch (error) {
@@ -109,7 +161,15 @@ app.get('/api/v1/pairs', (req, res) => {
 app.get('/api/v1/pairs/:pair', (req, res) => {
   try {
     const { pair } = req.params;
+    const cacheKey = `pair:${pair}`;
+    
+    const cached = dataCache.get(cacheKey);
+    if (cached) {
+      return res.json(cached);
+    }
+
     const data = dataLoader.loadPair(pair);
+    dataCache.set(cacheKey, data);
     res.json(data);
   } catch (error) {
     if (error.message.includes('Invalid pair code')) {
