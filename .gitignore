@@ -32,3 +32,9 @@ Thumbs.db
 
 # Predictions data
 data/predictions/
+
+# Logs
+*.log
+
+# Excel temporary files
+~$*
