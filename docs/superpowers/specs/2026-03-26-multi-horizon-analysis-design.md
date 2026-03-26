@@ -120,14 +120,15 @@ Excel 数据
     'summary': str,                 # 综合摘要（50-100字）
     'overall_assessment': str,      # 整体评估
     'key_factors': list,           # 关键因素列表（3-5个）
-    'horizon_recommendations': {
-        1: {                       # 1 天建议
+    'horizon_analysis': {
+        1: {                       # 1 天分析
             'recommendation': str,  # buy/sell/hold
             'confidence': str,
-            'reasoning': str       # 简要理由（1-2句话）
+            'analysis': str,       # 详细分析文本
+            'key_points': list     # 关键点列表
         },
-        5: {...},                  # 5 天建议
-        20: {...}                  # 20 天建议
+        5: {...},                  # 5 天分析
+        20: {...}                  # 20 天分析
     }
 }
 ```
@@ -1544,7 +1545,30 @@ python3 -m ml_services.fx_trading_model --mode predict --pair EUR
 
 ## 13. 附录
 
-### 13.1 技术指标清单（36 个）
+### 13.1 技术指标清单（35 个）
+
+**趋势类指标（16 个）**：
+- SMA5, SMA10, SMA20, SMA50, SMA120 (5个)
+- EMA5, EMA10, EMA12, EMA20, EMA26 (5个)
+- MACD, MACD_Signal, MACD_Hist (3个)
+- ADX, DI_Plus, DI_Minus (3个)
+
+**动量类指标（6 个）**：
+- RSI14, K, D, J, WilliamsR_14, CCI20
+
+**波动类指标（6 个）**：
+- ATR14, BB_Upper, BB_Middle, BB_Lower
+- Std_20d, Volatility_20d
+
+**成交量类指标（1 个）**：
+- OBV
+
+**价格形态指标（4 个）**：
+- Price_Percentile_120, Bias_5, Bias_10, Bias_20
+- Trend_Slope_20
+
+**市场环境指标（2 个）**：
+- MA_Alignment, SMA5_cross_SMA20
 
 **趋势类指标（16 个）**：
 - SMA5, SMA10, SMA20, SMA50, SMA120 (5个)

@@ -181,7 +181,7 @@ class MultiHorizonContextBuilder:
         
         # 1. 计算技术指标
         data = self.technical_analyzer.compute_all_indicators(data)
-        self.logger.info(f"技术指标计算完成，共 35 个")
+        self.logger.info(f"技术指标计算完成，共 36 个")
         
         # 2. 获取 ML 预测
         predictions = {}
@@ -703,8 +703,8 @@ def test_parse_valid_json():
     assert 'summary' in result
     assert 'overall_assessment' in result
     assert 'key_factors' in result
-    assert 'horizon_recommendations' in result
-    assert len(result['horizon_recommendations']) == 3
+    assert 'horizon_analysis' in result
+    assert len(result['horizon_analysis']) == 3
 ```
 
 - [ ] **Step 7: Run test to verify it fails**
@@ -781,13 +781,13 @@ class LLMAnalysisParser:
         """验证字段值"""
         # 验证 recommendation
         valid_recommendations = ['buy', 'sell', 'hold']
-        for horizon, rec in result['horizon_recommendations'].items():
+        for horizon, rec in result['horizon_analysis'].items():
             if rec['recommendation'] not in valid_recommendations:
                 raise ValueError(f"无效的 recommendation: {rec['recommendation']}")
         
         # 验证 confidence
         valid_confidences = ['high', 'medium', 'low']
-        for horizon, rec in result['horizon_recommendations'].items():
+        for horizon, rec in result['horizon_analysis'].items():
             if rec['confidence'] not in valid_confidences:
                 raise ValueError(f"无效的 confidence: {rec['confidence']}")
     
@@ -975,7 +975,7 @@ class TradingStrategyGenerator:
         horizon_display = {1: '短线（1天）', 5: '中线（5天）', 20: '长线（20天）'}
         
         for horizon, strategy_name in horizon_names.items():
-            llm_rec = llm_result['horizon_recommendations'][str(horizon)]
+            llm_rec = llm_result['horizon_analysis'][str(horizon)]
             
             # 计算价格水平
             price_levels = self._calculate_price_levels(
