@@ -2064,6 +2064,8 @@ git commit -m "feat: add risk warning panel"
 
 ### Task 13: Technical Indicators Chart
 
+**注意**: 由于 `data/predictions/` 下的 JSON 文件只包含当前指标值，不包含历史序列数据，本任务使用基于当前值的"随机游走 + 均值回归"算法生成合理的趋势数据。如果需要真实历史数据，需要修改数据生成流程以保存历史价格序列。
+
 **Files:**
 - Modify: `dashboard/public/index.html`
 - Modify: `dashboard/public/js/charts.js`
@@ -2519,6 +2521,8 @@ git commit -m "feat: complete V1.1 implementation with all features working"
 - ✅ Technical indicators charts (price + indicators)
 - ✅ Enhanced refresh logic
 - ✅ Additional CSS for charts
+- ✅ Logging functionality (Task 4.5)
+- ✅ Data cache mechanism (Task 4.6)
 
 ### Success Criteria Met
 
@@ -2528,13 +2532,16 @@ git commit -m "feat: complete V1.1 implementation with all features working"
 - ✅ 完整功能：6个货币对概览 + 交易策略对比 + 一致性分析 + 风险提示 + 技术指标
 - ✅ 错误处理：完善的错误处理和降级策略
 - ✅ 响应式设计：支持桌面、平板、手机
+- ✅ 日志管理：完整的日志记录和轮转机制
+- ✅ 数据缓存：API 响应缓存，提升性能
 
 ### Next Steps (V1.2)
 
 - 详细预测面板（点击卡片展开）
 - 图表交互（悬停提示、点击过滤）
-- 数据缓存机制
-- 日志管理
+- 前端组件测试
+- 性能测试（Lighthouse、k6、ab）
+- E2E 测试（Playwright 或 Cypress）
 
 ### Next Steps (V2.0)
 
