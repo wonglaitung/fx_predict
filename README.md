@@ -98,13 +98,34 @@ ML 预测结果 → LLM 双重验证 → 生成综合建议 + 完整分析报告
 
 ## 快速开始
 
-### 1. 安装依赖
+### 极简使用方法
+
+最快 3 步启动 Dashboard：
+
+```bash
+# 1. 安装依赖
+pip install -r requirements.txt
+
+# 2. 配置API密钥并运行完整流程
+cp .env.example .env
+# 编辑 .env 文件，填入 QWEN_API_KEY
+./run_full_pipeline.sh
+
+# 3. 启动 Dashboard
+cd dashboard && npm install && npm start
+```
+
+访问 `http://localhost:3000` 查看实时外汇预测仪表盘。
+
+### 详细步骤说明
+
+#### 1. 安装依赖
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. 配置环境变量
+#### 2. 配置环境变量
 
 复制 `.env.example` 为 `.env` 并填入通义千问 API 密钥：
 
@@ -113,14 +134,14 @@ cp .env.example .env
 # 编辑 .env 文件，填入 QWEN_API_KEY
 ```
 
-### 3. 准备数据
+#### 3. 准备数据
 
 确保数据文件 `FXRate_20260320.xlsx` 位于项目根目录。数据文件必须满足：
 - 工作表名称为货币对代码（如 EUR、JPY）
 - 包含 `Date` 和 `Close` 列
 - 日期格式：MM/DD/YYYY
 
-### 4. 运行完整流程（生成预测数据）
+#### 4. 运行完整流程（生成预测数据）
 
 ```bash
 # 运行完整流程（训练 + 预测 + 分析）
@@ -135,7 +156,7 @@ cp .env.example .env
 
 此步骤会生成所有货币对的多周期预测数据（JSON格式），保存到 `data/predictions/` 目录。
 
-### 5. 启动 Dashboard
+#### 5. 启动 Dashboard
 
 ```bash
 cd dashboard
