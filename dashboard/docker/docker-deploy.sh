@@ -94,12 +94,15 @@ build_image() {
 
     print_info "构建 Docker 镜像..."
     
-    # 使用项目根目录作为 build context，Dockerfile 在 dashboard/docker/ 目录下
-    if [ "$force" = true ]; then
-        docker build --no-cache -t "$IMAGE_NAME" -f dashboard/docker/Dockerfile "$PROJECT_DIR"
-    else
-        docker build -t "$IMAGE_NAME" -f dashboard/docker/Dockerfile "$PROJECT_DIR"
-    fi
+    # 切换到项目根目录运行 Docker 构建
+    (
+        cd "$PROJECT_DIR"
+        if [ "$force" = true ]; then
+            docker build --no-cache -t "$IMAGE_NAME" -f dashboard/docker/Dockerfile .
+        else
+            docker build -t "$IMAGE_NAME" -f dashboard/docker/Dockerfile .
+        fi
+    )
 
     if [ $? -eq 0 ]; then
         print_success "镜像构建成功: $IMAGE_NAME"
