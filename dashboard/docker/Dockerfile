@@ -19,6 +19,7 @@ FROM node:18-alpine
 # 安装 Python 3 和必要工具
 RUN apk add --no-cache \
     python3 \
+    python3-dev \
     py3-pip \
     bash \
     curl \
