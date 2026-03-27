@@ -4,13 +4,13 @@ FROM node:18-alpine AS dashboard-builder
 WORKDIR /app/dashboard
 
 # 复制 Dashboard 依赖文件
-COPY package*.json ./
+COPY dashboard/package*.json ./
 
 # 安装 Dashboard 依赖
 RUN npm ci --only=production
 
 # 复制 Dashboard 源代码
-COPY ./ ./
+COPY dashboard/ ./
 
 # ========================================
 # 第二阶段：最终镜像
@@ -46,7 +46,7 @@ COPY --from=dashboard-builder /app/dashboard ./dashboard
 RUN mkdir -p data/raw data/models data/predictions logs
 
 # 复制启动脚本
-COPY docker/docker-entrypoint.sh /usr/local/bin/
+COPY dashboard/docker/docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # 设置环境变量
