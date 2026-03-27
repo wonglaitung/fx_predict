@@ -37,6 +37,7 @@ SIGNAL_CONFIG = {
 # 路径配置
 PATHS = {
     'data_dir': 'data',
+    'raw_data_dir': 'data/raw',  # 原始数据文件目录
     'model_dir': 'data/models',
     'prediction_dir': 'data/predictions',
     'log_file': 'fx_predict.log'
@@ -96,15 +97,14 @@ INDICATOR_CONFIG = {
 
 # 数据配置
 DATA_CONFIG = {
-    'data_file': 'FXRate_20260320.xlsx',  # 默认数据文件路径
-    'supported_pairs': ['EUR', 'JPY', 'GBP', 'AUD', 'CAD', 'CHF', 'NZD'],
+    'data_file': 'data/raw/FXRate_20260320.xlsx',  # 默认数据文件路径
+    'supported_pairs': ['EUR', 'JPY', 'GBP', 'AUD', 'CAD', 'NZD'],
     'pair_symbols': {
         'EUR': 'EURUSD',
         'JPY': 'USDJPY',
         'GBP': 'GBPUSD',
         'AUD': 'AUDUSD',
         'CAD': 'USDCAD',
-        'CHF': 'USDCHF',
         'NZD': 'NZDUSD'
     },
     'min_data_points': 100,

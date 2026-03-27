@@ -334,6 +334,164 @@ handler = RotatingFileHandler('fx_predict.log', maxBytes=10*1024*1024, backupCou
 
 ## 最后更新
 
+- 日期：2026-03-27（第五次更新 - 数据文件重构和文件上传功能）
+- 作者：iFlow CLI
+- 版本：5.0 (数据文件重构 + 文件上传)
+- 更新内容：
+  - **项目目录组织的重要性**：
+    - 问题：Excel 数据文件散落在项目根目录，导致目录不够整洁
+    - 影响：
+      - 项目根目录包含非代码文件（.xlsx），违反了最佳实践
+      - 数据文件容易被误提交到 Git（虽然在 .gitignore 中忽略了，但仍然不理想）
+      - 不符合专业项目的目录组织规范
+    - 解决方案：
+      - 创建 `data/raw/` 目录专门存放原始数据文件
+      - 将所有 Excel 文件移动到 `data/raw/` 目录
+      - 更新配置文件中的默认路径
+      - 在 .gitignore 中添加 `data/raw/` 忽略规则
+    - 目录结构对比：
+      ```
+      # 重构前
+      fx_predict/
+      ├── FXRate_20260320.xlsx
+      ├── config.py
+      └── ...
+      
+      # 重构后
+      fx_predict/
+      ├── data/
+      │   └── raw/
+      │       └── FXRate_20260320.xlsx
+      ├── config.py
+      └── ...
+      ```
+    - 优势：
+      1. 项目根目录更加整洁，只包含配置文件和文档
+      2. 数据文件集中管理，易于查找和维护
+      3. 符合专业项目的目录组织规范
+      4. 避免误提交数据文件到 Git
+    - 教训：项目初始化时就应该规划好目录结构，避免后期重构
+  
+  - **文件上传功能的安全性考虑**：
+    - 问题：用户可以上传任意文件，存在安全隐患
+    - 安全措施：
+      1. 文件类型限制：只接受 `.xlsx` 文件
+      2. 文件大小限制：最大 10MB
+      3. 文件名处理：保留原始文件名（防止路径遍历攻击）
+      4. 存储位置：固定在 `data/raw/` 目录（无法指定其他路径）
+    - 代码实现：
+      ```javascript
+      // 文件类型过滤
+      fileFilter: function (req, file, cb) {
+        if (file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+            file.originalname.endsWith('.xlsx')) {
+          cb(null, true);
+        } else {
+          cb(new Error('只接受 .xlsx 格式的文件'), false);
+        }
+      },
+      
+      // 文件大小限制
+      limits: {
+        fileSize: 10 * 1024 * 1024 // 10MB limit
+      },
+      
+      // 固定存储目录
+      destination: function (req, file, cb) {
+        const uploadDir = path.resolve(process.env.UPLOAD_DIR || '../data/raw');
+        cb(null, uploadDir);
+      }
+      ```
+    - 额外考虑：
+      - 文件重命名：避免文件名冲突（可以选择添加时间戳或 UUID）
+      - 文件覆盖：同名文件会覆盖，需要考虑是否提供警告
+      - 权限控制：是否需要身份验证才能上传文件
+  
+  - **环境变量配置的最佳实践**：
+    - 在 dashboard/.env.example 中添加 UPLOAD_DIR 配置示例
+    - 提供合理的默认值（`../data/raw`）
+    - 允许通过环境变量自定义上传目录
+    - 优势：
+      - 灵活性：用户可以自定义上传目录
+      - 可维护性：不需要修改代码即可更改配置
+      - 安全性：敏感配置不硬编码在代码中
+  
+  - **CORS 配置的扩展**：
+    - 原配置：只支持 GET 方法
+    - 新需求：文件上传需要 POST 方法
+    - 解决方案：更新 CORS 配置支持 GET 和 POST 方法
+    - 代码示例：
+      ```javascript
+      // 修改前
+      methods: ['GET']
+      
+      // 修改后
+      methods: process.env.ALLOWED_METHODS?.split(',') || ['GET', 'POST']
+      ```
+    - 考虑未来扩展：使用环境变量 ALLOWED_METHODS，便于添加其他方法
+  
+  - **缓存管理的重要性**：
+    - 问题：上传新数据文件后，Dashboard 仍然显示旧数据
+    - 原因：服务器缓存了旧数据，没有自动刷新
+    - 解决方案：文件上传成功后自动清除缓存
+    - 代码实现：
+      ```javascript
+      // 上传成功后清除缓存
+      dataCache.clear();
+      logInfo('Cache cleared after file upload');
+      ```
+    - 优势：
+      1. 用户无需手动重启服务器
+      2. 自动获取最新数据
+      3. 提升用户体验
+    - 教训：数据更新时必须考虑缓存失效
+  
+  - **测试驱动开发在文件上传中的应用**：
+    - 先编写测试用例：
+      1. 测试上传有效的 .xlsx 文件
+      2. 测试上传无效的文件类型
+      3. 测试不提供文件的情况
+    - 实现代码使测试通过
+    - 验证文件确实保存到正确目录
+    - 测试覆盖率：新增 2 个测试用例，覆盖率从 45.78% 提升到 48.97%
+  
+  - **文档更新的完整性**：
+    - 更新了 2 个主要文档（README.md 和 AGENTS.md）
+    - 更新了 2 个项目文档（progress.txt 和 lessons.md）
+    - 涉及的内容：
+      1. 数据文件路径说明
+      2. 项目结构更新
+      3. 使用方法更新
+      4. API 文档更新
+      5. 常见问题更新
+    - 教训：任何代码变更都应该同步更新文档，保持一致性
+  
+  - **向后兼容性考虑**：
+    - 问题：重构后，使用旧路径的命令会失败
+    - 解决方案：
+      1. 保持命令行参数的灵活性：支持相对路径和文件名
+      2. 系统会自动在 `data/raw/` 目录查找文件
+      3. 提供清晰的错误提示
+    - 示例：
+      ```bash
+      # 仍然支持
+      ./run_full_pipeline.sh --data-file FXRate_20260320.xlsx
+      # 系统会自动查找 data/raw/FXRate_20260320.xlsx
+      
+      # 也支持完整路径
+      ./run_full_pipeline.sh --data-file data/raw/FXRate_20260320.xlsx
+      ```
+    - 优势：不影响现有用户的使用习惯
+  
+  - **Git 忽略规则的完善**：
+    - 在 .gitignore 中添加 `data/raw/` 忽略规则
+    - 原因：数据文件通常很大，不应该提交到 Git
+    - 优势：
+      1. 减小仓库大小
+      2. 避免提交敏感数据
+      3. 保持仓库整洁
+    - 注意事项：需要提供示例数据文件（如 FXRate_20260320.xlsx）供新用户测试
+
 - 日期：2026-03-26（第四次更新 - Dashboard 用户体验和文档组织）
 - 作者：iFlow CLI
 - 版本：4.0 (Dashboard 优化 + 文档完善)

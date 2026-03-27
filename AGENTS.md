@@ -41,14 +41,17 @@ cp .env.example .env
 
 系统支持三种方式配置数据文件路径，优先级从高到低：
 
+**数据文件位置**：默认存放在 `data/raw/` 目录下
+
 **1. 命令行参数（最高优先级）**
 
 ```bash
-# 使用指定的数据文件
-./run_full_pipeline.sh --data-file FXRate_20260320.xlsx
+# 使用指定的数据文件（支持相对路径或仅文件名）
+./run_full_pipeline.sh --data-file data/raw/FXRate_20260320.xlsx
+./run_full_pipeline.sh --data-file FXRate_20260320.xlsx  # 系统会在 data/raw/ 查找
 
 # Python 模块
-python3 -m ml_services.fx_trading_model --mode train --pair EUR --data-file FXRate_20260320.xlsx
+python3 -m ml_services.fx_trading_model --mode train --pair EUR --data-file data/raw/FXRate_20260320.xlsx
 python3 -m comprehensive_analysis --data-file FXRate_20260320.xlsx
 ```
 
@@ -58,7 +61,7 @@ python3 -m comprehensive_analysis --data-file FXRate_20260320.xlsx
 
 ```bash
 # 编辑 .env 文件，添加数据文件路径
-DATA_FILE=FXRate_20260320.xlsx
+DATA_FILE=data/raw/FXRate_20260320.xlsx
 ```
 
 **3. 配置文件（最低优先级）**
@@ -67,7 +70,7 @@ DATA_FILE=FXRate_20260320.xlsx
 
 ```python
 DATA_CONFIG = {
-    'data_file': 'FXRate_20260320.xlsx',  # 修改这里
+    'data_file': 'data/raw/FXRate_20260320.xlsx',  # 修改这里
     # ...
 }
 ```
@@ -76,6 +79,7 @@ DATA_CONFIG = {
 - 更新数据时，推荐使用命令行参数 `--data-file`，无需修改代码
 - 如果经常使用同一个数据文件，可以在 `.env` 文件中配置
 - 修改 `config.py` 中的默认值仅用于永久性更改
+- 数据文件也可以通过 Dashboard 的 `/api/v1/upload` 接口上传，会自动保存到 `data/raw/` 目录
 
 ### 一键运行完整流程（推荐）
 
@@ -160,6 +164,8 @@ npm test
 fx_predict/
 ├── run_full_pipeline.sh          # 一体化脚本（推荐）
 ├── data/                           # 数据目录
+│   ├── raw/                       # 原始数据文件（Excel）
+│   │   └── FXRate_20260320.xlsx   # 示例数据文件
 │   ├── models/                    # 训练好的模型（CatBoost，18个模型）
 │   │   ├── EUR_catboost_1d.pkl
 │   │   ├── EUR_catboost_5d.pkl
@@ -476,6 +482,11 @@ npm start
 - `GET /api/v1/strategies` - 获取交易策略
 - `GET /api/v1/indicators/:pair` - 获取技术指标
 - `GET /api/v1/risk` - 获取风险分析
+- `POST /api/v1/upload` - 上传数据文件
+  - 接受 `.xlsx` 格式文件
+  - 文件自动保存到 `data/raw/` 目录
+  - 文件大小限制：10MB
+  - 示例：`curl -X POST http://localhost:3000/api/v1/upload -F "file=@FXRate_20260327.xlsx"`
 
 ## 测试覆盖率
 
@@ -714,29 +725,43 @@ logging.basicConfig(
 
 **解决方案**：
 
+**数据文件位置**：默认存放在 `data/raw/` 目录下
+
 方式1：使用命令行参数（推荐）
 ```bash
-# 运行完整流程，指定新的数据文件
-./run_full_pipeline.sh --data-file FXRate_20260326.xlsx
+# 运行完整流程，指定新的数据文件（支持相对路径或仅文件名）
+./run_full_pipeline.sh --data-file data/raw/FXRate_20260326.xlsx
+./run_full_pipeline.sh --data-file FXRate_20260326.xlsx  # 系统会在 data/raw/ 查找
 
 # 单独运行模块
-python3 -m ml_services.fx_trading_model --mode train --pair EUR --data-file FXRate_20260326.xlsx
+python3 -m ml_services.fx_trading_model --mode train --pair EUR --data-file data/raw/FXRate_20260326.xlsx
 python3 -m comprehensive_analysis --data-file FXRate_20260326.xlsx
 ```
 
 方式2：在 .env 文件中配置
 ```bash
 # 编辑 .env 文件
-DATA_FILE=FXRate_20260326.xlsx
+DATA_FILE=data/raw/FXRate_20260326.xlsx
 ```
 
 方式3：修改 config.py 中的默认值
 ```python
 DATA_CONFIG = {
-    'data_file': 'FXRate_20260326.xlsx',  # 修改这里
+    'data_file': 'data/raw/FXRate_20260326.xlsx',  # 修改这里
     # ...
 }
 ```
+
+方式4：通过 Dashboard 上传（推荐用于 Web 界面用户）
+```bash
+# 启动 Dashboard
+cd dashboard && npm start
+
+# 使用 API 上传文件
+curl -X POST http://localhost:3000/api/v1/upload \
+  -F "file=@FXRate_20260326.xlsx"
+```
+文件会自动保存到 `data/raw/` 目录
 
 **优先级**：命令行参数 > 环境变量 > 配置文件默认值
 
@@ -747,6 +772,8 @@ Excel 文件必须满足：
 - 包含 `Date` 和 `Close` 列
 - 可选：`High`、`Low`、`Open` 列（系统会自动生成）
 - 日期格式：MM/DD/YYYY
+
+**文件位置**：将 Excel 文件放置在 `data/raw/` 目录下（如 `data/raw/FXRate_20260326.xlsx`）
 
 ### 3. 模型训练失败
 

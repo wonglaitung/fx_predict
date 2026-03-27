@@ -33,6 +33,9 @@ Thumbs.db
 # Predictions data
 data/predictions/
 
+# Raw data files
+data/raw/
+
 # Logs
 *.log
 

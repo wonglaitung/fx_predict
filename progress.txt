@@ -150,6 +150,50 @@
 
 ## 最后更新
 
+- 日期：2026-03-27（第七次更新 - 数据文件重构和文件上传功能）
+- 更新者：iFlow CLI
+- 更新内容：
+  - **数据文件目录重构**：
+    - 创建 `data/raw/` 目录存放原始 Excel 数据文件
+    - 移动所有 Excel 文件从项目根目录到 `data/raw/`
+    - 更新 config.py 中的 PATHS 配置，添加 `raw_data_dir` 项
+    - 更新 DATA_CONFIG 中的 data_file 默认路径为 `data/raw/FXRate_20260320.xlsx`
+  
+  - **Dashboard 文件上传功能实现**：
+    - 添加 multer 依赖（1.4.5-lts.1）
+    - 实现 POST /api/v1/upload 接口
+    - 文件自动保存到 `data/raw/` 目录
+    - 支持 .xlsx 格式文件，文件大小限制 10MB
+    - 上传成功后自动清除缓存
+    - 更新 CORS 配置支持 POST 请求
+    - 添加文件上传接口测试用例（2个）
+  
+  - **配置文件更新**：
+    - dashboard/.env.example 添加 UPLOAD_DIR 配置项
+    - .gitignore 添加 data/raw/（忽略原始数据文件）
+  
+  - **文档更新**：
+    - README.md：
+      - 更新数据文件路径说明（data/raw/ 目录）
+      - 更新项目结构（添加 data/raw/ 目录）
+      - 添加文件上传功能说明
+    - AGENTS.md：
+      - 更新数据文件配置说明（默认路径 data/raw/）
+      - 更新项目结构（添加 data/raw/ 目录）
+      - 更新常见问题中的数据文件路径示例
+      - 添加 Dashboard 文件上传 API 说明
+      - 添加通过 Dashboard 上传数据文件的方法
+  
+  - **测试验证**：
+    - 所有测试通过（4/4）
+    - 数据加载功能验证通过
+    - 文件上传接口测试通过
+    - 项目根目录不再包含 Excel 文件
+  
+  - **Git 状态**：
+    - 修改文件：config.py, dashboard/server.js, dashboard/package.json, dashboard/.env.example, dashboard/tests/api/api.test.js, .gitignore
+    - 删除文件：FXRate_20260320.xlsx（已移动到 data/raw/）
+
 - 日期：2026-03-26（第六次更新 - Dashboard UI 优化和文档完善）
 - 更新者：iFlow CLI
 - 更新内容：

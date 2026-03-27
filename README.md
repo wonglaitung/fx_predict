@@ -147,12 +147,16 @@ cp .env.example .env
 
 #### 3. 准备数据
 
-数据文件 `FXRate_20260320.xlsx` 需要满足以下要求：
+数据文件需要满足以下要求：
 - 工作表名称为货币对代码（如 EUR、JPY）
 - 包含 `Date` 和 `Close` 列
 - 日期格式：MM/DD/YYYY
 
-如需使用其他数据文件，可通过命令行参数指定：`./run_full_pipeline.sh --data-file XXX.xlsx`
+**数据文件位置**：默认存放在 `data/raw/` 目录下（如 `data/raw/FXRate_20260320.xlsx`）
+
+如需使用其他数据文件，可通过命令行参数指定：
+- 使用相对路径：`./run_full_pipeline.sh --data-file data/raw/FXRate_20260327.xlsx`
+- 或仅指定文件名（系统会在 `data/raw/` 目录查找）：`./run_full_pipeline.sh --data-file FXRate_20260327.xlsx`
 
 #### 4. 运行完整流程（生成预测数据）
 
@@ -185,6 +189,7 @@ Dashboard 功能：
 - 技术指标图表（价格走势 + 均线、技术指标数值）
 - 风险提示面板
 - 点击卡片查看完整大模型分析（侧边栏详情）
+- 文件上传功能：支持上传新的数据文件（通过 API `POST /api/v1/upload`），自动保存到 `data/raw/` 目录
 
 ### 单独运行各模块
 
@@ -302,6 +307,8 @@ pytest tests/ --cov=. --cov-report=html --cov-report=term
 fx_predict/
 ├── run_full_pipeline.sh          # 一体化脚本（推荐）
 ├── data/                           # 数据目录
+│   ├── raw/                       # 原始数据文件（Excel）
+│   │   └── FXRate_20260320.xlsx   # 示例数据文件
 │   ├── models/                    # 训练好的模型（CatBoost）
 │   └── predictions/               # 预测结果
 ├── data_services/                 # 数据服务层

@@ -19,7 +19,7 @@ if [ -f .env ]; then
 fi
 
 # 默认参数（环境变量优先，然后是默认值）
-DATA_FILE="${DATA_FILE:-FXRate_20260320.xlsx}"
+DATA_FILE="${DATA_FILE:-data/raw/FXRate_20260320.xlsx}"
 USE_LLM=true
 SKIP_TRAINING=false
 SKIP_PREDICTION=false

@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
+const multer = require('multer');
 const { logInfo, logError, requestLogger, errorLogger } = require('./logger');
 
 const app = express();
@@ -11,7 +12,7 @@ const PORT = process.env.PORT || 3000;
 // Middleware
 app.use(cors({
   origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
-  methods: ['GET'],
+  methods: process.env.ALLOWED_METHODS?.split(',') || ['GET', 'POST'],
   allowedHeaders: ['Content-Type']
 }));
 app.use(express.json());
@@ -353,6 +354,72 @@ app.get('/api/v1/risk', (req, res) => {
       error: {
         code: 'INTERNAL_ERROR',
         message: 'Failed to load risk analysis'
+      }
+    });
+  }
+});
+
+// Configure multer for file uploads
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: function (req, file, cb) {
+      // Save to data/raw directory
+      const uploadDir = path.resolve(process.env.UPLOAD_DIR || '../data/raw');
+      cb(null, uploadDir);
+    },
+    filename: function (req, file, cb) {
+      // Keep original filename
+      cb(null, file.originalname);
+    }
+  }),
+  fileFilter: function (req, file, cb) {
+    // Only accept .xlsx files
+    if (file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+        file.originalname.endsWith('.xlsx')) {
+      cb(null, true);
+    } else {
+      cb(new Error('只接受 .xlsx 格式的文件'), false);
+    }
+  },
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB limit
+  }
+});
+
+// Upload data file endpoint
+app.post('/api/v1/upload', upload.single('file'), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        error: {
+          code: 'INVALID_REQUEST',
+          message: '未上传文件'
+        }
+      });
+    }
+
+    const { filename, path: filePath, size } = req.file;
+    logInfo(`File uploaded: ${filename}, size: ${size} bytes, path: ${filePath}`);
+
+    // Clear cache to force reload with new data
+    dataCache.clear();
+    logInfo('Cache cleared after file upload');
+
+    res.json({
+      success: true,
+      message: '文件上传成功',
+      file: {
+        filename: filename,
+        size: size,
+        uploaded_at: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    logError(`Upload failed: ${error.message}`);
+    res.status(500).json({
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: '文件上传失败'
       }
     });
   }
