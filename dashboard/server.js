@@ -164,6 +164,7 @@ class DataLoader {
       const predictions5d = data.ml_predictions?.['5_day'] || {};
       const predictions20d = data.ml_predictions?.['20_day'] || {};
       const llmAnalysis = data.llm_analysis || {};
+      const tradingStrategies = data.trading_strategies || {};
       
       return {
         pair: data.metadata?.pair || pair,
@@ -197,7 +198,8 @@ class DataLoader {
           overall_assessment: llmAnalysis.overall_assessment || 'unknown',
           key_factors: llmAnalysis.key_factors || [],
           horizon_analysis: llmAnalysis.horizon_analysis || {}
-        }
+        },
+        trading_strategies: tradingStrategies
       };
     } catch (error) {
       console.error(`Error loading data for ${pair}:`, error);
