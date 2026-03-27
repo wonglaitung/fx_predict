@@ -463,7 +463,7 @@ function openSidebar(trigger, data) {
     tabs.style.display = 'none';
     
     // Render LLM content
-    renderSidebarContent(data);
+    renderSidebarContent(data.pair);
     
     // Ensure LLM tab is the only content visible
     document.getElementById('llmTab').classList.add('active');
