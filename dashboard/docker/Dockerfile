@@ -24,7 +24,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     g++ \
     make \
     cron \
-    crontabs \
     && curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
