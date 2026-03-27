@@ -22,6 +22,10 @@ RUN apk add --no-cache \
     py3-pip \
     bash \
     curl \
+    gcc \
+    musl-dev \
+    g++ \
+    make \
     && rm -rf /var/cache/apk/*
 
 # 设置工作目录
