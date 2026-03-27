@@ -599,7 +599,11 @@ npm start
 
   - 响应：包含所有 35 个技术指标的数值
 
-
+- `GET /api/v1/strategies/:pair/:horizon/indicators` - 获取策略关键指标
+  - 描述：获取指定货币对和周期的关键技术指标（6个类别）
+  - 参数：pair（货币对代码），horizon（周期，1/5/20）
+  - 响应：包含支撑阻力、趋势强度、动量、波动性、关键均线、交易信号等
+  - 缓存：TTL 5分钟，key 格式 `strategy_indicators:{pair}:{horizon}`
 
 - `GET /api/v1/risk` - 获取风险分析
 

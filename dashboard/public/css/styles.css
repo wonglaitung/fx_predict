@@ -452,6 +452,49 @@ body {
   color: var(--text-primary);
 }
 
+/* Sidebar Tabs */
+.sidebar-tabs {
+  display: none; /* Initially hidden, shown for strategy trigger */
+  flex-direction: row;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  background-color: var(--bg-primary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 0.25rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.875rem;
+}
+
+.tab-btn:hover {
+  border-color: var(--color-info);
+  color: var(--text-primary);
+}
+
+.tab-btn.active {
+  background-color: var(--color-info);
+  color: white;
+  border-color: var(--color-info);
+}
+
+.tab-content {
+  display: none;
+}
+
+.tab-content.active {
+  display: block;
+}
+
+.close-btn:hover {
+  color: var(--text-primary);
+}
+
 .sidebar-content {
   padding: 1.5rem;
 }
@@ -661,4 +704,175 @@ body {
   .sidebar-info-grid {
     grid-template-columns: 1fr;
   }
+  
+  /* Responsive Design for Indicator Cards */
+  .indicator-cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Tab Content Active State */
+.tab-content.active {
+  display: block;
+}
+
+/* Sidebar Tabs */
+.sidebar-tabs {
+  display: none; /* Initially hidden, shown for strategy trigger */
+  flex-direction: row;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  background-color: var(--bg-primary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 0.25rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.875rem;
+}
+
+.tab-btn:hover {
+  border-color: var(--color-info);
+  color: var(--text-primary);
+}
+
+.tab-btn.active {
+  background-color: var(--color-info);
+  color: white;
+  border-color: var(--color-info);
+}
+
+/* Tab Content Visibility */
+.tab-content {
+  display: none;
+}
+
+/* Strategy Indicators Header */
+.strategy-indicators-header {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.strategy-info h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: var(--text-primary);
+}
+
+.current-price {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+/* Overall Summary */
+.overall-summary {
+  background-color: var(--bg-primary);
+  padding: 1rem;
+  border-radius: 0.5rem;
+  margin-bottom: 1.5rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+/* Indicator Cards */
+.indicator-cards {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+.indicator-card {
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  padding: 1rem;
+}
+
+.indicator-card .card-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  color: var(--text-primary);
+}
+
+.indicator-values {
+  margin-bottom: 0.5rem;
+}
+
+.indicator-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.25rem 0;
+  font-size: 0.8rem;
+}
+
+.indicator-row.highlight {
+  background-color: rgba(59, 130, 246, 0.1);
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  margin: 0.25rem -0.5rem;
+}
+
+.indicator-row .label {
+  color: var(--text-secondary);
+}
+
+.indicator-row .value {
+  color: var(--text-primary);
+  font-family: 'Roboto Mono', monospace;
+}
+
+/* Status Styles */
+.value.status-超买 {
+  color: var(--color-danger);
+}
+
+.value.status-超卖 {
+  color: var(--color-success);
+}
+
+.value.status-中性 {
+  color: var(--text-secondary);
+}
+
+.value.status-强势 {
+  color: var(--color-success);
+}
+
+.value.status-弱势 {
+  color: var(--color-danger);
+}
+
+/* Card Interpretation */
+.card-interpretation {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-color);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+/* Loading Indicator */
+.loader {
+  width: 40px;
+  height: 40px;
+  border: 4px solid var(--border-color);
+  border-top-color: var(--color-info);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 0.5rem;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }

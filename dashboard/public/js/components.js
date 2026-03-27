@@ -1,5 +1,23 @@
 // UI Components rendering functions
 
+// Global state for sidebar management
+let currentSidebarTrigger = null; // 'card' | 'strategy'
+let currentSidebarData = null;
+let currentActiveTab = null;      // 'llm' | 'indicators'
+
+// Initialize tab click event listeners
+function initializeTabListeners() {
+  const tabBtns = document.querySelectorAll('.tab-btn');
+  tabBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tabName = btn.dataset.tab;
+      if (tabName) {
+        switchTab(tabName);
+      }
+    });
+  });
+}
+
 // Render overview cards
 function renderOverviewCards(pairs) {
   const container = document.getElementById('overviewCards');
@@ -108,6 +126,9 @@ function renderStrategiesTable(strategies, pairs) {
     const pairName = pairNameMap[pair] || pair;
     pairStrategies.forEach(strategy => {
       const row = document.createElement('tr');
+      // Add data attributes for row click handler
+      row.dataset.pair = pair;
+      row.dataset.horizon = strategy.horizon;
       row.innerHTML = `
         <td>${pairName}</td>
         <td>${strategy.horizon}</td>
@@ -169,9 +190,9 @@ function openAnalysisSidebar(pair) {
   overlay.classList.add('sidebar-overlay-open');
 }
 
-// Render sidebar content
+// Render sidebar content (LLM Analysis)
 function renderSidebarContent(pair) {
-  const container = document.getElementById('sidebarContent');
+  const container = document.getElementById('llmTab');
   const analysis = pair.llm_analysis || {};
   
   container.innerHTML = `
@@ -254,4 +275,267 @@ function renderHorizonAnalysis(horizonAnalysis) {
         : ''}
     </div>
   `).join('');
+}
+
+// Setup strategy table row click handlers
+function setupStrategyTableRowClick() {
+  const tbody = document.querySelector('#strategiesTable tbody');
+  if (!tbody) return;
+  
+  tbody.addEventListener('click', (e) => {
+    const row = e.target.closest('tr');
+    if (!row) return;
+    
+    const pair = row.dataset.pair;
+    const horizon = row.dataset.horizon;
+    
+    if (pair && horizon) {
+      openStrategyIndicators(pair, horizon);
+    }
+  });
+}
+
+// Open strategy indicators sidebar
+function openStrategyIndicators(pair, horizon) {
+  const sidebar = document.getElementById('analysisSidebar');
+  const overlay = document.getElementById('sidebarOverlay');
+  
+  // Update sidebar title
+  const title = document.getElementById('sidebarTitle');
+  title.textContent = '技术指标详情';
+  
+  // Show tabs
+  const tabs = document.getElementById('sidebarTabs');
+  tabs.style.display = 'flex';
+  
+  // Show loading state
+  showLoadingState();
+  
+  // Update state
+  currentSidebarTrigger = 'strategy';
+  
+  // Fetch data from API
+  fetch(`/api/v1/strategies/${pair}/${horizon}/indicators`)
+    .then(response => response.json())
+    .then(data => {
+      currentSidebarData = data;
+      
+      // Render strategy indicators
+      renderStrategyIndicators(data);
+      
+      // Switch to indicators tab by default
+      switchTab('indicators');
+      
+      hideLoadingState();
+      
+      // Open sidebar
+      sidebar.classList.add('sidebar-open');
+      overlay.classList.add('sidebar-overlay-open');
+    })
+    .catch(error => {
+      console.error('Error fetching strategy indicators:', error);
+      hideLoadingState();
+      document.getElementById('sidebarContent').innerHTML = `
+        <p class="sidebar-text">加载技术指标失败: ${error.message}</p>
+      `;
+      sidebar.classList.add('sidebar-open');
+      overlay.classList.add('sidebar-overlay-open');
+    });
+}
+
+// Show loading state
+function showLoadingState() {
+  const indicatorsTab = document.getElementById('indicatorsTab');
+  indicatorsTab.innerHTML = `
+    <div class="loading-container">
+      <div class="loader"></div>
+      <p class="sidebar-text">加载中...</p>
+    </div>
+  `;
+}
+
+// Hide loading state
+function hideLoadingState() {
+  // Loading state is removed when content is rendered
+}
+
+// Render strategy indicators
+function renderStrategyIndicators(data) {
+  const container = document.getElementById('indicatorsTab');
+  const { pair_name, horizon_name, current_price, overall_summary, key_indicators } = data;
+  
+  container.innerHTML = `
+    <div class="strategy-indicators-header">
+      <div class="strategy-info">
+        <h3>${pair_name} - ${horizon_name}</h3>
+        <div class="current-price">当前价格: ${current_price.toFixed(4)}</div>
+      </div>
+    </div>
+    
+    <div class="overall-summary">
+      <strong>整体分析：</strong>${overall_summary}
+    </div>
+    
+    <div class="indicator-cards">
+      ${renderIndicatorCard('支撑与阻力', key_indicators.support_resistance)}
+      ${renderIndicatorCard('趋势强度', key_indicators.trend_strength)}
+      ${renderIndicatorCard('动量指标', key_indicators.momentum)}
+      ${renderIndicatorCard('波动性', key_indicators.volatility)}
+      ${renderIndicatorCard('关键均线', key_indicators.key_ma)}
+      ${renderIndicatorCard('交易信号', key_indicators.signals)}
+    </div>
+  `;
+}
+
+// Render single indicator card
+function renderIndicatorCard(title, indicators) {
+  const indicatorsHtml = indicators.map(indicator => {
+    const label = formatIndicatorLabel(indicator.label);
+    const statusClass = indicator.status ? `status-${indicator.status}` : '';
+    const highlightClass = indicator.highlight ? 'highlight' : '';
+    
+    return `
+      <div class="indicator-row ${highlightClass}">
+        <span class="label">${label}</span>
+        <span class="value ${statusClass}">${indicator.value}</span>
+      </div>
+    `;
+  }).join('');
+  
+  return `
+    <div class="indicator-card">
+      <div class="card-title">${title}</div>
+      <div class="indicator-values">
+        ${indicatorsHtml}
+      </div>
+      ${indicators[0].interpretation ? `
+        <div class="card-interpretation">
+          ${indicators[0].interpretation}
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+// Format indicator label (English to Chinese)
+function formatIndicatorLabel(label) {
+  const labelMap = {
+    'MA_Alignment': '均线排列',
+    'ADX': 'ADX趋势强度',
+    'DI_Plus': '上升方向线',
+    'DI_Minus': '下降方向线',
+    'RSI14': 'RSI相对强弱',
+    'Williams_R': '威廉指标',
+    'MACD': 'MACD柱状图',
+    'ATR14': '平均真实波幅',
+    'BB_Position': '布林带位置',
+    'Volatility_20d': '20日波动率',
+    'SMA5': '5日均线',
+    'SMA20': '20日均线',
+    'SMA50': '50日均线',
+    'SMA5_cross_SMA20': '5/20日均线交叉',
+    'Price_vs_MA120': '价格相对120日均线',
+    'Buy_Signals': '买入信号数量',
+    'Sell_Signals': '卖出信号数量'
+  };
+  
+  return labelMap[label] || label;
+}
+
+// Unified sidebar opening function
+function openSidebar(trigger, data) {
+  const sidebar = document.getElementById('analysisSidebar');
+  const overlay = document.getElementById('sidebarOverlay');
+  const title = document.getElementById('sidebarTitle');
+  const tabs = document.getElementById('sidebarTabs');
+  
+  // Update state
+  currentSidebarTrigger = trigger;
+  currentSidebarData = data;
+  
+  if (trigger === 'card') {
+    // Triggered by card click - show LLM analysis only
+    title.textContent = '大模型分析详情';
+    tabs.style.display = 'none';
+    
+    // Render LLM content
+    renderSidebarContent(data);
+    
+    // Ensure LLM tab is the only content visible
+    document.getElementById('llmTab').classList.add('active');
+    document.getElementById('indicatorsTab').classList.remove('active');
+    currentActiveTab = 'llm';
+    
+  } else if (trigger === 'strategy') {
+    // Triggered by strategy table click - show tabs
+    title.textContent = '技术指标详情';
+    tabs.style.display = 'flex';
+    
+    // Switch to indicators tab by default
+    switchTab('indicators');
+  }
+  
+  // Open sidebar
+  sidebar.classList.add('sidebar-open');
+  overlay.classList.add('sidebar-overlay-open');
+}
+
+// Modified openAnalysisSidebar to use unified function
+function openAnalysisSidebar(pair) {
+  // Store LLM data in a structure that can be accessed later
+  const sidebarData = {
+    type: 'llm',
+    pair: pair
+  };
+  
+  openSidebar('card', sidebarData);
+}
+
+// Tab switching function
+function switchTab(tabName) {
+  // Update tab buttons
+  const tabBtns = document.querySelectorAll('.tab-btn');
+  tabBtns.forEach(btn => {
+    if (btn.dataset.tab === tabName) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+  
+  // Update tab content visibility
+  const tabContents = document.querySelectorAll('.tab-content');
+  tabContents.forEach(content => {
+    content.classList.remove('active');
+  });
+  
+  const targetTab = document.getElementById(`${tabName}Tab`);
+  if (targetTab) {
+    targetTab.classList.add('active');
+  }
+  
+  // Update state
+  currentActiveTab = tabName;
+  
+  // Render content based on tab
+  if (tabName === 'llm' && currentSidebarTrigger === 'card' && currentSidebarData) {
+    // Render LLM content
+    renderSidebarContent(currentSidebarData.pair);
+  } else if (tabName === 'indicators' && currentSidebarTrigger === 'strategy' && currentSidebarData) {
+    // Indicators already rendered
+    // No action needed
+  }
+}
+
+// Initialize tab click event listeners
+function initializeTabListeners() {
+  const tabBtns = document.querySelectorAll('.tab-btn');
+  tabBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tabName = btn.dataset.tab;
+      if (tabName) {
+        switchTab(tabName);
+      }
+    });
+  });
 }

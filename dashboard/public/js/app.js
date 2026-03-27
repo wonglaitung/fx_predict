@@ -147,6 +147,12 @@ async function init() {
     overlay.addEventListener('click', closeAnalysisSidebar);
   }
   
+  // Initialize strategy table row click handlers
+  setupStrategyTableRowClick();
+  
+  // Initialize tab click event listeners
+  initializeTabListeners();
+  
   // Load initial data
   await refreshData();
   
