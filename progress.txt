@@ -72,12 +72,17 @@
 - [x] 风险收益比计算
 
 ### Phase 3: 测试和文档 ✅
-- [x] 单元测试（83个测试）
+- [x] 单元测试（115个测试）
   - test_comprehensive_analysis.py: 4个
   - test_excel_loader.py: 7个
   - test_feature_engineering.py: 35个（新增交叉特征测试）
   - test_fx_trading_model.py: 6个
-  - test_technical_analysis.py: 31个（更新 OBV 测试）
+  - test_technical_analysis.py: 42个（更新 OBV 测试）
+  - test_multi_horizon_context.py: 6个
+  - test_multi_horizon_prompt.py: 4个
+  - test_llm_parser.py: 5个
+  - test_strategy_generator.py: 4个
+  - test_json_formatter.py: 8个
 - [x] 集成测试（9个端到端测试）
   - 端到端工作流
   - 多货币对测试
@@ -88,7 +93,7 @@
   - 特征重要性
   - 技术指标验证
   - 完整系统测试
-- [x] 测试覆盖率：85%
+- [x] 测试覆盖率：77%
 - [x] 更新 AGENTS.md 文档
   - 快速开始指南
   - 项目结构说明
@@ -98,17 +103,19 @@
   - 测试覆盖率统计
   - 日志配置说明
   - 常见问题解答
+  - Dashboard API 文档
+  - 新增策略指标详情 API
 - [x] 添加 Session Workflow 说明
 
 ## 测试统计
 
 | 指标 | 数值 |
 |------|------|
-| 总测试数 | 92 个 |
-| 单元测试 | 83 个 |
+| 总测试数 | 115 个 |
+| 单元测试 | 106 个 |
 | 集成测试 | 9 个 |
 | 测试通过率 | 100% |
-| 总体覆盖率 | 85% |
+| 总体覆盖率 | 77% |
 
 ## 模块覆盖率
 
@@ -119,6 +126,11 @@
 | data_services/excel_loader.py | 83% | ✅ |
 | data_services/technical_analysis.py | 78% | ✅ |
 | ml_services/base_model_processor.py | 74% | ✅ |
+| multi_horizon_context.py | 100% | ✅ |
+| multi_horizon_prompt.py | 98% | ✅ |
+| llm_parser.py | 98% | ✅ |
+| strategy_generator.py | 100% | ✅ |
+| json_formatter.py | 99% | ✅ |
 | ml_services/feature_engineering.py | 62% | ⚠️ |
 | llm_services/qwen_engine.py | 0% | ⚠️ |
 | config.py | 29% | ⚠️ |
@@ -126,11 +138,13 @@
 ## Git 提交历史
 
 最新提交：
-- c84b2fd docs: 添加 Session Workflow 说明
-- f6c296c feat: 添加集成测试和更新文档
-- 069f139 feat: 实现综合分析系统
-- 0f215fd feat: 实现大模型引擎
-- d187737 feat: 实现 CatBoost 交易模型
+- c87dee0 fix: pass pair object instead of sidebarData to renderSidebarContent
+- d6f6585 fix: add loadPairRaw method to return raw data with metadata
+- 078cf2a fix: include trading_strategies in loadPair function
+- 8e1c04a fix: resolve tab display and data loading issues
+- 7abc6ad feat: complete strategy indicators detail with table row click and tab switching
+- 0f1ffd8 feat: add tab-based sidebar structure for analysis
+- 76f6075 feat: add API endpoint for strategy indicators detail
 
 ## 已知问题和待办事项
 
@@ -144,11 +158,138 @@
 ### 未来增强
 - [ ] 实时数据源支持
 - [ ] 回测框架
-- [ ] Web UI 界面
+- [ ] Web UI 界面（Dashboard 已实现基本功能）
 - [ ] 更多货币对支持
-- [ ] 多时间周期分析
+- [ ] 多时间周期分析（已实现 1/5/20 天周期）
 
 ## 最后更新
+
+- 日期：2026-03-27（第十二次更新 - 策略指标详情功能实现）
+- 更新者：iFlow CLI
+- 更新内容：
+  - **策略指标详情功能实现**：
+    - 点击交易策略表格行显示详细技术指标
+    - 侧边栏支持标签页切换（大模型分析 / 技术指标）
+    - 后端新增 API 端点 `/api/v1/strategies/:pair/:horizon/indicators`
+    - 提取 6 个关键技术指标类别：
+      1. 支撑与阻力（布林带上中下轨、价格位置）
+      2. 趋势强度（ADX、趋势状态、均线排列）
+      3. 动量指标（RSI、MACD、状态判断）
+      4. 波动性（ATR、波动率）
+      5. 关键均线（SMA5/10/20/120、排列状态）
+      6. 交易信号（Williams%R、CCI、信号状态）
+    - 状态颜色标识：超买（红色）、超卖（绿色）、中性（灰色）、强势（绿色）、弱势（红色）
+    - 自动生成整体分析摘要
+    - 规则式解释生成（无需大模型）
+
+  - **设计文档和实现计划**：
+    - 创建完整的设计文档：`docs/superpowers/specs/2026-03-27-strategy-indicators-detail-design.md`
+    - 创建实现计划文档：`docs/superpowers/plans/2026-03-27-strategy-indicators-detail.md`
+    - 设计文档包含：API 设计、UI 结构、指标提取逻辑、触发源区分机制
+    - 实现计划包含：8个任务，涵盖后端 API、前端 HTML、CSS、JavaScript
+
+  - **后端实现**：
+    - 新增 API 端点 `GET /api/v1/strategies/:pair/:horizon/indicators`
+    - 参数验证：货币对代码（6个）和周期（1/5/20）
+    - 缓存机制：使用 DataCache 缓存（5分钟 TTL）
+    - 辅助函数：
+      - `extractKeyIndicators()`: 从35个技术指标提取6个关键类别
+      - `generateOverallSummary()`: 生成整体分析摘要
+      - `getHorizonName()`: 获取中文周期名称
+    - 规则式解释生成：
+      - 布林带位置解释（上轨之上/中轨附近/跌破下轨）
+      - ADX趋势解释（强劲/较弱/无明显趋势）
+      - RSI状态解释（超买/超卖/中性）
+      - Williams%R信号解释（超买/超卖/中性）
+
+  - **前端 HTML 结构更新**：
+    - 标签页从 sidebar-header 内部移出
+    - 添加两个标签页按钮：大模型分析、技术指标
+    - 添加两个标签页内容容器：llmTab、indicatorsTab
+    - 结构更清晰，符合传统 TAB 页设计
+
+  - **前端 CSS 样式**：
+    - 标签页按钮样式：无边框、底部下划线高亮
+    - 激活状态：蓝色下划线 + 文字颜色变化
+    - 悬停状态：淡蓝色背景
+    - 指标卡片网格：2列布局
+    - 状态颜色：超买（#ef4444）、超卖（#22c55e）、中性（#6b7280）、强势（#22c55e）、弱势（#ef4444）
+    - 加载指示器：旋转动画
+    - 响应式设计：移动端单列布局
+
+  - **前端 JavaScript 实现**：
+    - 全局状态管理：
+      - `currentSidebarTrigger`: 记录触发源（card/strategy）
+      - `currentSidebarData`: 保存当前数据
+      - `currentActiveTab`: 记录活动标签页
+    - 表格行点击处理：`setupStrategyTableRowClick()`
+    - 侧边栏统一打开：`openSidebar(trigger, data)`
+    - 标签页切换：`switchTab(tabName)`
+    - 策略指标渲染：`renderStrategyIndicators(data)`
+    - 指标卡片渲染：`renderIndicatorCard(title, indicators)`
+    - 标签格式化：`formatIndicatorLabel(label)`
+    - 加载状态管理：`showLoadingState()`, `hideLoadingState()`
+    - 标签页点击初始化：`initializeTabListeners()`
+
+  - **触发源区分机制**：
+    - 卡片点击触发：显示大模型分析，隐藏标签页
+    - 表格行点击触发：显示标签页，默认显示技术指标
+    - 状态切换：切换标签页时获取对应数据
+
+  - **多轮问题修复**：
+    1. **标签页样式问题**：从按钮改为传统 TAB 页样式（底部下划线高亮）
+    2. **标签页位置问题**：从 sidebar-header 内部移出，正确显示在标题下方
+    3. **数据加载错误**：
+       - `renderIndicatorCard` 改为处理对象格式（而不是数组）
+       - `renderSidebarContent` 添加对缺失 `current_price` 的安全处理
+       - `loadPair` 返回标准化格式（包含 trading_strategies）
+       - `switchTab` 正确获取货币对数据
+    4. **交易策略表格为空**：`loadPair` 添加 `trading_strategies` 字段
+    5. **API 数据缺失**：添加 `loadPairRaw` 方法返回原始数据（包含 metadata 和 technical_indicators）
+    6. **大模型分析不显示**：`openSidebar` 传递 `data.pair` 而不是 `data`
+
+  - **数据结构问题根源**：
+    - `loadPair()` 返回标准化数据（仅包含 pair, pair_name, current_price, predictions, llm_analysis）
+    - `loadPairRaw()` 返回原始数据（包含完整的 metadata, technical_indicators, trading_strategies 等）
+    - 不同 API 端点需要不同的数据结构
+
+  - **测试验证**：
+    - API 端点测试：`/api/v1/strategies/EUR/1/indicators` 正常返回数据
+    - 数据结构验证：包含 pair, pair_name, current_price, horizon, horizon_name, key_indicators, overall_summary
+    - Dashboard 测试：5/5 通过
+    - 服务器重启：清除缓存，确保最新数据
+
+  - **文档更新**：
+    - AGENTS.md：新增策略指标详情 API 端点文档
+    - README.md：新增功能说明（点击交易策略表格行查看详细技术指标）
+    - Dashboard 功能列表更新
+
+  - **Git 提交记录**：
+    - 76f6075 - "feat: add API endpoint for strategy indicators detail"
+    - 0f1ffd8 - "feat: add tab-based sidebar structure for analysis"
+    - 7abc6ad - "feat: complete strategy indicators detail with table row click and tab switching"
+    - 8e1c04a - "fix: resolve tab display and data loading issues"
+    - 078cf2a - "fix: include trading_strategies in loadPair function"
+    - d6f6585 - "fix: add loadPairRaw method to return raw data with metadata"
+    - c87dee0 - "fix: pass pair object instead of sidebarData to renderSidebarContent"
+
+  - **经验教训**：
+    1. **API 设计的重要性**：不同的端点可能需要不同的数据结构，应该根据使用场景设计合适的返回格式
+    2. **数据标准化 vs 原始数据**：标准化数据适合前端展示，原始数据适合需要详细信息的功能
+    3. **标签页的设计**：传统的 TAB 页样式（底部下划线）比按钮样式更符合用户习惯
+    4. **HTML 结构的影响**：标签页应该放在标题容器外部，避免布局问题
+    5. **全局状态管理**：复杂的交互需要维护全局状态，记录触发源和当前数据
+    6. **防御性编程**：前端应该验证数据完整性，使用可选链和默认值
+    7. **缓存陷阱**：后端数据结构更新后，必须重启服务器或清除缓存
+    8. **多轮修复的必要性**：复杂功能通常需要多轮迭代，逐步修复发现的问题
+    9. **设计先行的重要性**：详细的设计文档和实现计划可以减少后期返工
+    10. **测试验证的重要性**：每个修复都需要测试验证，确保问题真正解决
+
+  - **下一步工作**：
+    - 等待用户测试反馈
+    - 根据用户需求进一步优化
+    - 考虑添加更多交互功能
+    - 性能优化（如果需要）
 
 - 日期：2026-03-27（第十一次更新 - Dashboard 预测显示修复）
 - 更新者：iFlow CLI
@@ -387,9 +528,9 @@
     - 更新文件：README.md, AGENTS.md, progress.txt, lessons.md
   
   - **项目总结**：
-    - 当前版本：v3.0（多周期 + Dashboard + Docker）
-    - 核心功能：外汇预测、技术分析、LLM 集成、Dashboard 可视化、Docker 部署
-    - 测试覆盖：115 个测试用例，85% 覆盖率
+    - 当前版本：v4.0（多周期 + Dashboard + Docker + 策略指标详情）
+    - 核心功能：外汇预测、技术分析、LLM 集成、Dashboard 可视化、Docker 部署、策略指标详情
+    - 测试覆盖：115 个测试用例，77% 覆盖率
     - 部署方式：本地运行、Docker 部署（两种方式）
     - 文档完整：README.md、AGENTS.md、DOCKER.md、progress.txt、lessons.md
 

@@ -77,7 +77,7 @@ DATA_FILE="${DATA_FILE:-FXRate_20260320.xlsx}"
 - 灵活性高，适应不同使用场景
 - 向后兼容，不影响现有代码
 
-### 4. 测试驱动的开发（TDD）
+### 5. 测试驱动的开发（TDD）
 
 **经验**：先写测试，再写实现代码。
 
@@ -93,7 +93,7 @@ DATA_FILE="${DATA_FILE:-FXRate_20260320.xlsx}"
 3. 重构优化
 4. 提交代码
 
-### 5. 模型持久化
+### 6. 模型持久化
 
 **经验**：训练好的模型需要保存和加载，避免重复训练。
 
@@ -103,7 +103,7 @@ DATA_FILE="${DATA_FILE:-FXRate_20260320.xlsx}"
 - 文件命名规范：`{pair}_{model_name}.pkl`
 - 实现 BaseModelProcessor 统一管理
 
-### 6. 错误处理和日志记录
+### 7. 错误处理和日志记录
 
 **经验**：完善的错误处理和日志记录对于生产环境至关重要。
 
@@ -113,7 +113,7 @@ DATA_FILE="${DATA_FILE:-FXRate_20260320.xlsx}"
 - 区分日志级别（INFO、WARNING、ERROR）
 - 记录关键操作和错误信息
 
-### 7. 集成测试的重要性
+### 8. 集成测试的重要性
 
 **经验**：单元测试只能测试单个模块，集成测试可以验证端到端工作流。
 
@@ -124,7 +124,7 @@ DATA_FILE="${DATA_FILE:-FXRate_20260320.xlsx}"
 - 数据泄漏防范验证
 - 错误处理和边界情况
 
-### 8. 技术指标的选择
+### 9. 技术指标的选择
 
 **经验**：从经过验证的技术指标集合中选择，避免过度拟合。
 
@@ -136,7 +136,7 @@ DATA_FILE="${DATA_FILE:-FXRate_20260320.xlsx}"
 
 **结果**：选择 35 个指标，分为 6 类
 
-### 9. 特征工程的平衡
+### 10. 特征工程的平衡
 
 **经验**：特征数量要适中，避免维度灾难和过拟合。
 
@@ -146,9 +146,9 @@ DATA_FILE="${DATA_FILE:-FXRate_20260320.xlsx}"
 - 使用滞后特征防止数据泄漏
 - 添加市场环境特征提高模型鲁棒性
 
-**结果**：创建 16 个特征，分为 6 类
+**结果**：创建 18 个特征，分为 6 类
 
-### 10. Python 模块的主函数入口
+### 11. Python 模块的主函数入口
 
 **问题**：使用了相对导入（`from ml_services.xxx import`）的 Python 模块需要添加 `if __name__ == "__main__":` 主函数入口才能直接运行。
 
@@ -182,7 +182,7 @@ python3 -m ml_services.fx_trading_model --mode train --pair EUR
 
 **教训**：在设计项目结构时，如果计划提供命令行接口，应该从一开始就规划好主函数入口和运行方式。
 
-### 11. Git 工作流
+### 12. Git 工作流
 
 **经验**：频繁提交和小步提交有助于代码管理。
 
@@ -191,6 +191,167 @@ python3 -m ml_services.fx_trading_model --mode train --pair EUR
 - 提交信息清晰规范（使用 Conventional Commits）
 - 提交前运行测试确保通过
 - 推送到远程仓库备份
+
+### 13. 前端状态管理的重要性
+
+**经验**：复杂的交互需要维护全局状态，记录触发源和当前数据。
+
+**实现**：
+- 使用全局变量记录当前状态（`currentSidebarTrigger`, `currentSidebarData`, `currentActiveTab`）
+- 根据触发源执行不同的逻辑（卡片点击 vs 表格行点击）
+- 标签页切换时获取对应数据
+
+**代码示例**：
+```javascript
+let currentSidebarTrigger = null; // 'card' | 'strategy'
+let currentSidebarData = null;
+let currentActiveTab = null;      // 'llm' | 'indicators'
+
+if (tabName === 'llm') {
+  if (currentSidebarTrigger === 'strategy' && currentSidebarData) {
+    // Fetch pair data for LLM analysis
+    fetch(`/api/v1/pairs/${currentSidebarData.pair}`)
+      .then(response => response.json())
+      .then(pairData => {
+        renderSidebarContent(pairData);
+      });
+  }
+}
+```
+
+**教训**：复杂的交互功能需要清晰的状态管理，避免逻辑混乱。
+
+### 14. 前端防御性编程
+
+**经验**：前端应该验证数据完整性，使用可选链和默认值。
+
+**实现**：
+- 使用可选链操作符 `?.` 避免访问 undefined 的属性
+- 提供默认值确保代码健壮性
+- 验证必需字段是否存在
+
+**代码示例**：
+```javascript
+// 修复前
+const pred1d = predictions['1d'] || {};
+
+// 修复后（更健壮）
+const pred1d = pair.predictions?.['1d'] || {};
+const icon1d = getIconInfo(pred1d.prediction || 'hold');
+
+const currentPrice = pair.current_price !== undefined && pair.current_price !== null 
+  ? pair.current_price.toFixed(4) 
+  : 'N/A';
+```
+
+**教训**：防御性编程可以避免很多运行时错误，提高代码健壮性。
+
+### 15. 数据结构设计的重要性
+
+**经验**：不同的 API 端点可能需要不同的数据结构。
+
+**问题**：
+- `loadPair()` 返回标准化数据（仅包含前端展示所需的字段）
+- `loadPairRaw()` 返回原始数据（包含完整的 metadata, technical_indicators 等）
+- 某些功能需要详细的技术指标，某些功能只需要基本信息
+
+**解决方案**：
+- 根据使用场景设计合适的数据结构
+- 标准化数据适合前端展示
+- 原始数据适合需要详细信息的功能
+
+**教训**：API 设计应该根据使用场景灵活调整，不要强制统一所有端点的返回格式。
+
+### 16. HTML 结构对 CSS 布局的影响
+
+**经验**：标签页应该放在标题容器外部，避免布局问题。
+
+**问题**：
+- 标签页放在 `sidebar-header` 内部时，样式不正确
+- 标签页与标题和关闭按钮混在一起
+
+**解决方案**：
+```html
+<!-- 修复前 -->
+<div class="sidebar-header">
+  <h2 class="sidebar-title">...</h2>
+  <div class="sidebar-tabs">...</div>
+  <button class="close-btn">&times;</button>
+</div>
+
+<!-- 修复后 -->
+<div class="sidebar-header">
+  <h2 class="sidebar-title">...</h2>
+  <button class="close-btn">&times;</button>
+</div>
+<div class="sidebar-tabs">...</div>
+```
+
+**教训**：HTML 结构直接影响 CSS 布局，应该根据设计需求合理组织 DOM 结构。
+
+### 17. 多轮修复的必要性
+
+**经验**：复杂功能通常需要多轮迭代，逐步修复发现的问题。
+
+**策略指标详情功能修复历程**：
+1. 第一轮：实现基本功能（后端 API + 前端 HTML）
+2. 第二轮：修复标签页样式（从按钮改为传统 TAB 页）
+3. 第三轮：修复标签页位置（从 header 内部移出）
+4. 第四轮：修复数据加载错误（renderIndicatorCard, renderSidebarContent）
+5. 第五轮：修复交易策略表格为空（添加 trading_strategies 字段）
+6. 第六轮：修复 API 数据缺失（添加 loadPairRaw 方法）
+7. 第七轮：修复大模型分析不显示（传递正确的参数）
+
+**教训**：复杂功能的实现不是一蹴而就的，需要多轮迭代和用户反馈。
+
+### 18. 设计先行的重要性
+
+**经验**：详细的设计文档和实现计划可以减少后期返工。
+
+**策略指标详情功能设计流程**：
+1. 创建设计文档：`docs/superpowers/specs/2026-03-27-strategy-indicators-detail-design.md`
+2. 设计文档包含：API 设计、UI 结构、指标提取逻辑、触发源区分机制
+3. 创建实现计划：`docs/superpowers/plans/2026-03-27-strategy-indicators-detail.md`
+4. 实现计划包含：8个任务，涵盖后端 API、前端 HTML、CSS、JavaScript
+5. 逐个完成任务，每完成一个任务验证功能
+
+**教训**：设计先行可以明确需求，减少后期返工，提高开发效率。
+
+### 19. 浏览器缓存和硬刷新
+
+**经验**：前端静态资源更新后，用户需要硬刷新浏览器才能看到最新版本。
+
+**硬刷新方法**：
+- Windows/Linux: `Ctrl + Shift + R` 或 `Ctrl + F5`
+- Mac: `Cmd + Shift + R`
+
+**或者手动清除缓存**：
+1. 按 `F12` 打开开发者工具
+2. 右键点击浏览器地址栏旁边的刷新按钮
+3. 选择"清空缓存并硬性重新加载"
+
+**教训**：浏览器缓存是前端开发的常见陷阱，需要提醒用户硬刷新。
+
+### 20. 后端缓存陷阱
+
+**经验**：后端数据结构更新后，必须重启服务器或清除缓存。
+
+**问题**：
+- 后端代码添加了 `predictions` 字段
+- 服务器缓存了旧数据
+- 前端收到的是旧数据，导致显示错误
+
+**解决方案**：
+```bash
+# 重启服务器
+pkill -f "node.*server.js"
+nohup node server.js > logs/server.log 2>&1 &
+
+# 验证 API 返回
+curl -s http://localhost:3000/api/v1/pairs | python3 -c "import sys, json; data=json.load(sys.stdin); [print(f\"{p['pair']}: predictions={p.get('predictions', 'MISSING')}\") for p in data['pairs']]"
+```
+
+**教训**：缓存机制可以提高性能，但也可能导致数据不一致，需要及时清除。
 
 ## 代码质量问题
 
@@ -313,10 +474,12 @@ handler = RotatingFileHandler('fx_predict.log', maxBytes=10*1024*1024, backupCou
 
 ### 成功因素
 1. 严格的数据泄漏防范
-2. 完善的测试覆盖（85%）
+2. 完善的测试覆盖（77%）
 3. 硬性约束控制风险
 4. 模块化的代码结构
 5. 详细的文档和注释
+6. 灵活的配置管理
+7. 完整的 Docker 部署方案
 
 ### 待改进
 1. 提高部分模块测试覆盖率
@@ -331,8 +494,60 @@ handler = RotatingFileHandler('fx_predict.log', maxBytes=10*1024*1024, backupCou
 3. **风险控制**：硬性约束比模型预测更重要
 4. **模块化**：清晰的模块结构便于维护和扩展
 5. **文档**：完善的文档是项目成功的基础
+6. **状态管理**：复杂的交互需要清晰的状态管理
+7. **防御性编程**：前端应该验证数据完整性
+8. **数据结构设计**：根据使用场景设计合适的数据结构
+9. **多轮修复**：复杂功能需要多轮迭代和用户反馈
+10. **设计先行**：详细的设计文档可以减少后期返工
 
 ## 最后更新
+
+- 日期：2026-03-27（第十二次更新 - 策略指标详情功能实现）
+- 作者：iFlow CLI
+- 版本：12.0 (策略指标详情功能 + 多轮修复经验)
+- 更新内容：
+  - **前端状态管理的重要性**：
+    - 复杂的交互需要维护全局状态
+    - 记录触发源（card/strategy）和当前数据
+    - 根据状态执行不同的逻辑
+    - 标签页切换时获取对应数据
+  
+  - **前端防御性编程**：
+    - 使用可选链操作符 `?.` 避免访问 undefined
+    - 提供默认值确保代码健壮性
+    - 验证必需字段是否存在
+    - 示例：`pair.current_price?.toFixed(4) || 'N/A'`
+  
+  - **数据结构设计的重要性**：
+    - 不同的 API 端点需要不同的数据结构
+    - `loadPair()` 返回标准化数据（前端展示）
+    - `loadPairRaw()` 返回原始数据（详细信息）
+    - 根据使用场景灵活设计
+  
+  - **HTML 结构对 CSS 布局的影响**：
+    - 标签页应该放在标题容器外部
+    - 避免与标题和关闭按钮混在一起
+    - DOM 结构直接影响 CSS 布局
+  
+  - **多轮修复的必要性**：
+    - 复杂功能需要多轮迭代（策略指标详情功能：7轮修复）
+    - 每轮修复解决特定问题
+    - 用户反馈驱动优化
+  
+  - **设计先行的重要性**：
+    - 详细的设计文档减少后期返工
+    - 实现计划明确任务步骤
+    - 逐个完成任务验证功能
+  
+  - **浏览器缓存和硬刷新**：
+    - 前端更新后需要硬刷新
+    - 提醒用户使用 Ctrl+Shift+R
+    - 或者手动清除缓存
+  
+  - **后端缓存陷阱**：
+    - 数据结构更新后必须重启服务器
+    - 缓存机制可能导致数据不一致
+    - 及时清除缓存确保最新数据
 
 - 日期：2026-03-27（第九次更新 - Dashboard 缓存问题和显示优化）
 - 作者：iFlow CLI
