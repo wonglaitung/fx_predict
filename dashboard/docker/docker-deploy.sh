@@ -12,7 +12,8 @@ IMAGE_NAME="fx-predict"
 CONTAINER_NAME="fx-predict-app"
 DASHBOARD_PORT="${DASHBOARD_PORT:-3000}"
 TIMEZONE="${TIMEZONE:-Asia/Shanghai}"
-DOCKER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# 脚本所在目录是 dashboard/docker/，项目根目录是它的父目录的父目录
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 # 颜色输出
 RED='\033[0;31m'
@@ -128,10 +129,10 @@ run_container() {
     fi
 
     # 创建必要的目录
-    mkdir -p "$DOCKER_DIR/data/raw"
-    mkdir -p "$DOCKER_DIR/data/models"
-    mkdir -p "$DOCKER_DIR/data/predictions"
-    mkdir -p "$DOCKER_DIR/logs"
+    mkdir -p "$PROJECT_DIR/data/raw"
+    mkdir -p "$PROJECT_DIR/data/models"
+    mkdir -p "$PROJECT_DIR/data/predictions"
+    mkdir -p "$PROJECT_DIR/logs"
 
     # 运行容器
     docker run -d \
@@ -142,11 +143,11 @@ run_container() {
         -e PORT=3000 \
         -e PYTHONUNBUFFERED=1 \
         -e TZ="$TIMEZONE" \
-        -v "$DOCKER_DIR/.env:/app/.env:ro" \
-        -v "$DOCKER_DIR/data/raw:/app/data/raw" \
-        -v "$DOCKER_DIR/data/models:/app/data/models" \
-        -v "$DOCKER_DIR/data/predictions:/app/data/predictions" \
-        -v "$DOCKER_DIR/logs:/app/logs" \
+        -v "$PROJECT_DIR/.env:/app/.env:ro" \
+        -v "$PROJECT_DIR/data/raw:/app/data/raw" \
+        -v "$PROJECT_DIR/data/models:/app/data/models" \
+        -v "$PROJECT_DIR/data/predictions:/app/data/predictions" \
+        -v "$PROJECT_DIR/logs:/app/logs" \
         --health-cmd="node -e \"require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})\"" \
         --health-interval=30s \
         --health-timeout=10s \

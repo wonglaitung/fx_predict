@@ -3,8 +3,8 @@ version: '3.8'
 services:
   fx-predict:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: dashboard/docker/Dockerfile
     container_name: fx-predict-app
     restart: unless-stopped
     
@@ -22,15 +22,15 @@ services:
     # Volume 挂载
     volumes:
       # 挂载 .env 配置文件（宿主机更新自动生效）
-      - ./.env:/app/.env:ro
+      - ../../.env:/app/.env:ro
       
       # 挂载数据目录
-      - ./data/raw:/app/data/raw
-      - ./data/models:/app/data/models
-      - ./data/predictions:/app/data/predictions
+      - ../../data/raw:/app/data/raw
+      - ../../data/models:/app/data/models
+      - ../../data/predictions:/app/data/predictions
       
       # 挂载日志目录
-      - ./logs:/app/logs
+      - ../../logs:/app/logs
     
     # 网络配置
     networks:

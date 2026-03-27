@@ -6,12 +6,32 @@
 
 - **Dashboard 服务**：提供 Web 界面，实时显示外汇预测和分析结果
 - **定时任务**：每小时自动执行 `run_full_pipeline.sh`，更新预测数据
-- **配置管理**：通过 Volume 挂载 `.env` 文件，宿主机更新自动生效
+- **配置管理**：通过 Volume �挂载 `.env` 文件，宿主机更新自动生效
 
 ## 前置要求
 
 1. **Docker**：安装 Docker 20.10 或更高版本
 2. **环境配置**：确保 `.env` 文件已配置好 `QWEN_API_KEY`
+
+## 重要提示
+
+**所有 Docker 相关文件都位于 `dashboard/docker/` 目录下。**
+
+**使用 docker-deploy.sh 脚本时，请先进入该目录：**
+
+```bash
+cd dashboard/docker
+./docker-deploy.sh build
+./docker-deploy.sh up
+```
+
+**使用 docker-compose 时，请从该目录执行命令：**
+
+```bash
+cd dashboard/docker
+docker-compose build
+docker-compose up -d
+```
 
 ## 部署方式
 
@@ -74,6 +94,9 @@ cp .env.example .env
 ### 2. 构建并启动服务
 
 ```bash
+# 进入 Docker 目录
+cd dashboard/docker
+
 # 构建镜像
 docker-compose build
 
@@ -94,7 +117,7 @@ docker-compose logs -f
 
 ### 端口配置
 
-在 `docker-compose.yml` 中修改端口映射：
+在 `dashboard/docker/docker-compose.yml` 中修改端口映射：
 
 ```yaml
 ports:
@@ -103,7 +126,7 @@ ports:
 
 ### 时区配置
 
-在 `docker-compose.yml` 中修改时区：
+在 `dashboard/docker/docker-compose.yml` 中修改时区：
 
 ```yaml
 environment:
@@ -177,9 +200,14 @@ deploy:
 
 ### docker-compose 命令（如果使用 docker-compose）
 
+**重要：所有 docker-compose 命令都需要在 dashboard/docker/ 目录下执行。**
+
 ### 服务管理
 
 ```bash
+# 进入 Docker 目录
+cd dashboard/docker
+
 # 启动服务
 docker-compose up -d
 
@@ -199,7 +227,7 @@ docker-compose logs -f fx-predict
 ### 查看定时任务日志
 
 ```bash
-# 查看 pipeline 执行日志
+# 查看 pipeline 执行日志（需要先 cd dashboard/docker）
 docker-compose exec fx-predict cat /app/logs/pipeline.log
 
 # 查看 cron 守护进程日志
@@ -209,8 +237,8 @@ docker-compose exec fx-predict cat /app/logs/cron.log
 ### 更新配置
 
 ```bash
-# 1. 修改宿主机的 .env 文件
-vim .env
+# 1. 修改宿主机的 .env 文件（项目根目录）
+vim ../.env
 
 # 2. 重启服务使配置生效
 docker-compose restart
@@ -243,7 +271,7 @@ docker-compose exec fx-predict crontab -l
 ### Dashboard 无法访问
 
 ```bash
-# 检查服务状态
+# 检查服务状态（需要先 cd dashboard/docker）
 docker-compose ps
 
 # 查看日志
@@ -333,6 +361,7 @@ server {
 
 3. **定期更新镜像**：
    ```bash
+   # 需要先 cd dashboard/docker
    docker-compose pull
    docker-compose up -d
    ```
@@ -342,8 +371,8 @@ server {
 ### 备份数据
 
 ```bash
-# 备份所有数据目录
-tar -czf backup-$(date +%Y%m%d).tar.gz data/ logs/ .env
+# 备份所有数据目录（需要先 cd dashboard/docker，然后 cd .. 回到项目根目录）
+tar -czf backup-$(date +%Y%m%d).tar.gz ../data/ ../logs/ ../.env
 
 # 备份到远程
 scp backup-$(date +%Y%m%d).tar.gz user@backup-server:/backups/
@@ -366,6 +395,7 @@ docker-compose restart
 服务配置了健康检查，可以通过以下命令查看：
 
 ```bash
+# 需要先 cd dashboard/docker
 docker-compose ps
 # 查看状态列，应该是 "healthy"
 ```
@@ -385,10 +415,10 @@ docker-compose logs --tail=100
 ### 更新代码
 
 ```bash
-# 1. 拉取最新代码
+# 1. 拉取最新代码（需要先 cd .. 回到项目根目录）
 git pull
 
-# 2. 重新构建镜像
+# 2. 重新构建镜像（cd dashboard/docker）
 docker-compose build
 
 # 3. 重启服务
@@ -467,8 +497,8 @@ version: '3.8'
 services:
   fx-predict:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: dashboard/docker/Dockerfile
     container_name: fx-predict-app
     restart: unless-stopped
     ports:
