@@ -11,6 +11,8 @@
 - **大模型集成**：通义千问 API，提供技术面深度分析、ML 预测验证、风险分析和交易建议
 - **交易方案生成器**：自动计算入场价、止损止盈（基于 ATR）、风险回报比
 - **Web Dashboard**：Node.js + Express 实时可视化仪表盘，支持大模型分析展示
+- **文件上传功能**：支持通过 Dashboard 上传 Excel 数据文件
+- **Docker 部署**：提供完整的 Docker 部署方案，支持容器化运行
 - **一体化脚本**：`run_full_pipeline.sh` 脚本实现训练、预测、分析全流程自动化
 
 ## 快速开始
@@ -80,6 +82,85 @@ DATA_CONFIG = {
 - 如果经常使用同一个数据文件，可以在 `.env` 文件中配置
 - 修改 `config.py` 中的默认值仅用于永久性更改
 - 数据文件也可以通过 Dashboard 的 `/api/v1/upload` 接口上传，会自动保存到 `data/raw/` 目录
+
+## Docker 部署（可选）
+
+系统提供完整的 Docker 部署方案，支持容器化运行。
+
+### 前置要求
+
+- Docker 20.10 或更高版本
+- 确保 `.env` 文件已配置好 `QWEN_API_KEY`
+
+### 快速开始
+
+**方式一：使用 docker-deploy.sh 脚本（推荐）**
+
+```bash
+# 进入 Docker 目录
+cd dashboard/docker
+
+# 构建 Docker 镜像
+./docker-deploy.sh build
+
+# 启动容器（后台运行）
+./docker-deploy.sh up
+
+# 查看日志
+./docker-deploy.sh logs
+
+# 访问 Dashboard
+# http://localhost:3000
+```
+
+**方式二：使用 docker-compose**
+
+```bash
+# 进入 Docker 目录
+cd dashboard/docker
+
+# 构建并启动服务
+docker-compose up -d
+
+# 查看日志
+docker-compose logs -f
+
+# 访问 Dashboard
+# http://localhost:3000
+```
+
+### Docker 功能特性
+
+- **Dashboard 服务**：提供 Web 界面，实时显示外汇预测和分析结果
+- **定时任务**：每小时自动执行 `run_full_pipeline.sh`，更新预测数据
+- **配置管理**：通过 Volume 挂载 `.env` 文件，宿主机更新自动生效
+- **数据持久化**：数据、模型、日志通过 Volume 挂载，容器删除不丢失
+
+### Docker 常用命令
+
+```bash
+# 停止容器
+./docker-deploy.sh down
+
+# 重启容器
+./docker-deploy.sh restart
+
+# 查看容器状态
+./docker-deploy.sh ps
+
+# 查看详细状态
+./docker-deploy.sh status
+
+# 进入容器执行命令
+./docker-deploy.sh exec bash
+
+# 清理未使用的资源
+./docker-deploy.sh clean
+```
+
+### 详细文档
+
+完整的 Docker 部署文档请参考：`dashboard/docker/DOCKER.md`
 
 ### 一键运行完整流程（推荐）
 
@@ -183,6 +264,13 @@ fx_predict/
 │   │   ├── index.html
 │   │   ├── css/
 │   │   └── js/
+│   ├── docker/                    # Docker 部署文件
+│   │   ├── Dockerfile             # Docker 镜像定义
+│   │   ├── docker-compose.yml     # Docker Compose 配置
+│   │   ├── docker-deploy.sh       # Docker 部署脚本
+│   │   ├── docker-entrypoint.sh   # 容器启动脚本
+│   │   ├── .dockerignore          # Docker 忽略文件
+│   │   └── DOCKER.md              # Docker 部署文档
 │   └── tests/                     # Dashboard 测试
 ├── data_services/                 # 数据服务层
 │   ├── excel_loader.py           # Excel 数据加载器
@@ -476,17 +564,76 @@ npm start
 
 ### Dashboard API
 
+**注意**：服务器启动时会自动打印所有 API 端点信息，包括方法、路径、描述、参数和响应格式。
+
 - `GET /health` - 健康检查
+  - 描述：检查服务是否正常运行
+  - 参数：无
+  - 响应：`{ "status": "ok", "timestamp": "..." }`
+
 - `GET /api/v1/pairs` - 获取所有货币对信息
+  - 描述：获取所有货币对的基本信息和预测结果
+  - 参数：无
+  - 响应：货币对数组，包含价格、预测、置信度、LLM 分析等
+
 - `GET /api/v1/pairs/:pair` - 获取单个货币对详细信息
+  - 描述：获取指定货币对的详细信息
+  - 参数：pair（货币对代码，如 EUR）
+  - 响应：单个货币对的完整信息
+
 - `GET /api/v1/strategies` - 获取交易策略
+
+  - 描述：获取所有货币对的交易策略
+
+  - 参数：无
+
+  - 响应：包含入场价、止损、止盈、建议、置信度等
+
+
+
 - `GET /api/v1/indicators/:pair` - 获取技术指标
+
+  - 描述：获取指定货币对的技术指标数值
+
+  - 参数：pair（货币对代码）
+
+  - 响应：包含所有 35 个技术指标的数值
+
+
+
 - `GET /api/v1/risk` - 获取风险分析
+
+  - 描述：获取所有货币对的风险分析
+
+  - 参数：无
+
+  - 响应：包含风险等级、风险因素、警告信息等
+
+
+
 - `POST /api/v1/upload` - 上传数据文件
-  - 接受 `.xlsx` 格式文件
-  - 文件自动保存到 `data/raw/` 目录
+
+  - 描述：上传 Excel 数据文件到服务器
+
+  - 参数：file（表单数据，文件对象）
+
+  - 文件格式：.xlsx
+
   - 文件大小限制：10MB
-  - 示例：`curl -X POST http://localhost:3000/api/v1/upload -F "file=@FXRate_20260327.xlsx"`
+
+  - 响应：上传成功消息
+
+  - 示例：
+
+    ```bash
+
+    curl -X POST http://localhost:3000/api/v1/upload \
+
+      -F "file=@FXRate_20260327.xlsx"
+
+    ```
+
+  - 文件会自动保存到 `data/raw/` 目录，服务器缓存会被清除
 
 ## 测试覆盖率
 
@@ -856,13 +1003,90 @@ npm start
 示例：
 - JPY 20天 sell：入场 158.36，止损 167.86（+9.50），止盈 148.86（-9.50），距离完全相等
 
+### 10. 如何使用 Docker 部署
+
+**问题**：如何使用 Docker 部署项目？
+
+**解决方案**：
+
+```bash
+# 进入 Docker 目录
+cd dashboard/docker
+
+# 使用 docker-deploy.sh 脚本（推荐）
+./docker-deploy.sh build
+./docker-deploy.sh up
+
+# 或使用 docker-compose
+docker-compose build
+docker-compose up -d
+
+# 访问 Dashboard
+# http://localhost:3000
+```
+
+详细文档请参考：`dashboard/docker/DOCKER.md`
+
+### 11. Docker 容器无法启动
+
+**问题**：Docker 容器启动失败。
+
+**可能原因**：
+- .env 文件未配置或不正确
+- 端口 3000 已被占用
+- 数据文件不存在
+
+**解决方案**：
+```bash
+# 检查 .env 文件
+ls -la ../.env
+
+# 检查端口占用
+netstat -tulpn | grep 3000
+
+# 检查数据文件
+ls -la ../data/raw/FXRate_20260320.xlsx
+
+# 查看容器日志
+docker-compose logs fx-predict
+# 或
+./docker-deploy.sh logs
+```
+
+### 12. 如何查看 Docker 容器中的定时任务日志
+
+**问题**：如何查看定时任务是否正常执行？
+
+**解决方案**：
+```bash
+# 进入 Docker 目录
+cd dashboard/docker
+
+# 查看 pipeline 执行日志
+docker-compose exec fx-predict cat /app/logs/pipeline.log
+
+# 查看 cron 守护进程日志
+docker-compose exec fx-predict cat /app/logs/cron.log
+
+# 或使用 docker-deploy.sh
+./docker-deploy.sh exec bash
+# 在容器内查看日志
+cat /app/logs/pipeline.log
+cat /app/logs/cron.log
+```
+
 ## 开发者
 
 - **创建时间**：2026-03-25
-- **版本**：3.0（多周期 + Dashboard）
+- **版本**：4.0（多周期 + Dashboard + Docker）
 - **Python 版本**：3.10+
-- **框架**：CatBoost, Pandas, NumPy, Express
-- **前端**：HTML5, CSS3, JavaScript, Chart.js
+- **Node.js 版本**：18+
+- **Docker 版本**：20.10+
+- **Python 框架**：CatBoost, Pandas, NumPy, Scikit-learn
+- **Web 框架**：Express
+- **前端技术**：HTML5, CSS3, JavaScript, Chart.js
+- **测试框架**：pytest, Jest
+- **容器化**：Docker, Docker Compose（可选）
 
 ## 许可证
 
