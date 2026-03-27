@@ -8,7 +8,7 @@ python-dotenv>=1.0.0
 
 # 机器学习
 catboost>=1.2.0
-scikit-learn>=1.3.0
+scikit-learn>=1.2.0
 
 # 数据可视化
 matplotlib>=3.7.0
