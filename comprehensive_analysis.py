@@ -3,6 +3,10 @@ import logging
 from typing import Dict, Any
 import json
 import time
+from dotenv import load_dotenv
+
+# 加载环境变量
+load_dotenv()
 
 from data_services.technical_analysis import TechnicalAnalyzer
 from ml_services.fx_trading_model import FXTradingModel

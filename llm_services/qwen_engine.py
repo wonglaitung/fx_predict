@@ -2,6 +2,10 @@ import os
 import requests
 import logging
 from datetime import datetime
+from dotenv import load_dotenv
+
+# 加载环境变量
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
