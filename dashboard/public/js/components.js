@@ -194,6 +194,9 @@ function openAnalysisSidebar(pair) {
 function renderSidebarContent(pair) {
   const container = document.getElementById('llmTab');
   const analysis = pair.llm_analysis || {};
+  const currentPrice = pair.current_price !== undefined && pair.current_price !== null 
+    ? pair.current_price.toFixed(4) 
+    : 'N/A';
   
   container.innerHTML = `
     <div class="sidebar-section">
@@ -201,15 +204,15 @@ function renderSidebarContent(pair) {
       <div class="sidebar-info-grid">
         <div class="sidebar-info-item">
           <span class="sidebar-info-label">货币对</span>
-          <span class="sidebar-info-value">${pair.pair_name}</span>
+          <span class="sidebar-info-value">${pair.pair_name || '未知'}</span>
         </div>
         <div class="sidebar-info-item">
           <span class="sidebar-info-label">当前价格</span>
-          <span class="sidebar-info-value">${pair.current_price.toFixed(4)}</span>
+          <span class="sidebar-info-value">${currentPrice}</span>
         </div>
         <div class="sidebar-info-item">
           <span class="sidebar-info-label">整体评估</span>
-          <span class="sidebar-info-value">${analysis.overall_assessment || 'unknown'}</span>
+          <span class="sidebar-info-value">${analysis.overall_assessment || '未知'}</span>
         </div>
       </div>
     </div>
@@ -389,18 +392,19 @@ function renderStrategyIndicators(data) {
 
 // Render single indicator card
 function renderIndicatorCard(title, indicators) {
-  const indicatorsHtml = indicators.map(indicator => {
-    const label = formatIndicatorLabel(indicator.label);
-    const statusClass = indicator.status ? `status-${indicator.status}` : '';
-    const highlightClass = indicator.highlight ? 'highlight' : '';
-    
-    return `
-      <div class="indicator-row ${highlightClass}">
-        <span class="label">${label}</span>
-        <span class="value ${statusClass}">${indicator.value}</span>
-      </div>
-    `;
-  }).join('');
+  // Handle object format (from backend API)
+  const indicatorsHtml = Object.entries(indicators)
+    .filter(([key, value]) => key !== 'interpretation')
+    .map(([key, value]) => {
+      const label = formatIndicatorLabel(key);
+      
+      return `
+        <div class="indicator-row">
+          <span class="label">${label}</span>
+          <span class="value">${value}</span>
+        </div>
+      `;
+    }).join('');
   
   return `
     <div class="indicator-card">
@@ -408,9 +412,9 @@ function renderIndicatorCard(title, indicators) {
       <div class="indicator-values">
         ${indicatorsHtml}
       </div>
-      ${indicators[0].interpretation ? `
+      ${indicators.interpretation ? `
         <div class="card-interpretation">
-          ${indicators[0].interpretation}
+          ${indicators.interpretation}
         </div>
       ` : ''}
     </div>
@@ -518,9 +522,26 @@ function switchTab(tabName) {
   currentActiveTab = tabName;
   
   // Render content based on tab
-  if (tabName === 'llm' && currentSidebarTrigger === 'card' && currentSidebarData) {
-    // Render LLM content
-    renderSidebarContent(currentSidebarData.pair);
+  if (tabName === 'llm') {
+    // Render LLM content - work for both card and strategy triggers
+    // For strategy trigger, we need to fetch the pair data first
+    if (currentSidebarTrigger === 'strategy' && currentSidebarData) {
+      // Fetch pair data for LLM analysis
+      fetch(`/api/v1/pairs/${currentSidebarData.pair}`)
+        .then(response => response.json())
+        .then(pairData => {
+          renderSidebarContent(pairData);
+        })
+        .catch(error => {
+          console.error('Error fetching pair data:', error);
+          document.getElementById('llmTab').innerHTML = `
+            <p class="sidebar-text">加载大模型分析失败: ${error.message}</p>
+          `;
+        });
+    } else if (currentSidebarTrigger === 'card' && currentSidebarData) {
+      // Render LLM content from stored data
+      renderSidebarContent(currentSidebarData.pair);
+    }
   } else if (tabName === 'indicators' && currentSidebarTrigger === 'strategy' && currentSidebarData) {
     // Indicators already rendered
     // No action needed
