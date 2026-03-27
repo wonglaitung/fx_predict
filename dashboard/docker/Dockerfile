@@ -46,7 +46,7 @@ COPY --from=dashboard-builder /app/dashboard ./dashboard
 RUN mkdir -p data/raw data/models data/predictions logs
 
 # 复制启动脚本
-COPY dashboard/docker/docker-entrypoint.sh /usr/local/bin/
+COPY docker/docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # 设置环境变量
