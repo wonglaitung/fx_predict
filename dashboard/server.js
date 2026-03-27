@@ -88,8 +88,10 @@ class DataLoader {
           const filePath = path.join(this.dataDir, file);
           const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
           
-          // Get the 5-day prediction as the main prediction for overview
-          const mainPrediction = data.ml_predictions?.['5_day'] || data.ml_predictions?.['1_day'] || {};
+          // Get all three horizon predictions for overview
+          const predictions1d = data.ml_predictions?.['1_day'] || {};
+          const predictions5d = data.ml_predictions?.['5_day'] || {};
+          const predictions20d = data.ml_predictions?.['20_day'] || {};
           
           // Extract LLM analysis
           const llmAnalysis = data.llm_analysis || {};
@@ -99,9 +101,28 @@ class DataLoader {
             pair_name: data.metadata?.pair_name || `${pairCode}/USD`,
             current_price: data.metadata?.current_price,
             last_update: data.metadata?.data_date || new Date().toISOString(),
-            prediction: mainPrediction.prediction_text || 'hold',
-            probability: mainPrediction.probability || 0.5,
-            confidence: mainPrediction.confidence || 'unknown',
+            // Use 1-day as main prediction for backward compatibility
+            prediction: predictions1d.prediction_text || 'hold',
+            probability: predictions1d.probability || 0.5,
+            confidence: predictions1d.confidence || 'unknown',
+            // Add multi-horizon predictions
+            predictions: {
+              '1d': {
+                prediction: predictions1d.prediction_text || 'hold',
+                probability: predictions1d.probability || 0.5,
+                confidence: predictions1d.confidence || 'unknown'
+              },
+              '5d': {
+                prediction: predictions5d.prediction_text || 'hold',
+                probability: predictions5d.probability || 0.5,
+                confidence: predictions5d.confidence || 'unknown'
+              },
+              '20d': {
+                prediction: predictions20d.prediction_text || 'hold',
+                probability: predictions20d.probability || 0.5,
+                confidence: predictions20d.confidence || 'unknown'
+              }
+            },
             llm_analysis: {
               summary: llmAnalysis.summary || '',
               overall_assessment: llmAnalysis.overall_assessment || 'unknown',

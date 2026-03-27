@@ -9,30 +9,35 @@ function renderOverviewCards(pairs) {
     const card = document.createElement('div');
     card.className = 'card card-clickable';
     
-    // Determine prediction icon and class
-    let icon = '→';
-    let iconClass = 'prediction-neutral';
+    // Get multi-horizon predictions
+    const predictions = pair.predictions || {};
+    const pred1d = predictions['1d'] || {};
+    const pred5d = predictions['5d'] || {};
+    const pred20d = predictions['20d'] || {};
     
-    const predictionMap = {
-      'buy': '买入',
-      'sell': '卖出',
-      'hold': '持有',
-      '上涨': '上涨',
-      '下跌': '下跌'
+    // Helper function to get icon and class
+    const getIconInfo = (predictionText) => {
+      const predictionMap = {
+        'buy': '买入',
+        'sell': '卖出',
+        'hold': '持有',
+        '上涨': '上涨',
+        '下跌': '下跌'
+      };
+      const displayPrediction = predictionMap[predictionText] || predictionText;
+      
+      if (displayPrediction === '买入' || displayPrediction === '上涨') {
+        return { icon: '↗', iconClass: 'prediction-up' };
+      } else if (displayPrediction === '卖出' || displayPrediction === '下跌') {
+        return { icon: '↘', iconClass: 'prediction-down' };
+      } else {
+        return { icon: '→', iconClass: 'prediction-neutral' };
+      }
     };
     
-    const displayPrediction = predictionMap[pair.prediction] || pair.prediction;
-    
-    if (displayPrediction === '买入' || displayPrediction === '上涨') {
-      icon = '↗';
-      iconClass = 'prediction-up';
-    } else if (displayPrediction === '卖出' || displayPrediction === '下跌') {
-      icon = '↘';
-      iconClass = 'prediction-down';
-    }
-    
-    // Format probability as percentage
-    const probabilityPercent = (pair.probability * 100).toFixed(1) + '%';
+    const icon1d = getIconInfo(pred1d.prediction);
+    const icon5d = getIconInfo(pred5d.prediction);
+    const icon20d = getIconInfo(pred20d.prediction);
     
     // Translate confidence to Chinese
     const confidenceMap = {
@@ -41,20 +46,38 @@ function renderOverviewCards(pairs) {
       'low': '低',
       'unknown': '未知'
     };
-    const displayConfidence = confidenceMap[pair.confidence] || pair.confidence;
     
     // Get analysis summary (truncate if too long)
     const summary = pair.llm_analysis?.summary || '暂无分析';
     const truncatedSummary = summary.length > 50 ? summary.substring(0, 50) + '...' : summary;
     
+    // Format probability and confidence for each horizon
+    const formatPredictionInfo = (pred) => {
+      const probabilityPercent = (pred.probability * 100).toFixed(1) + '%';
+      const displayConfidence = confidenceMap[pred.confidence] || 'unknown';
+      return `${probabilityPercent} (${displayConfidence})`;
+    };
+    
     card.innerHTML = `
       <div class="card-title">${pair.pair_name}</div>
       <div class="card-price">${pair.current_price.toFixed(4)}</div>
-      <div class="card-prediction">
-        <span class="prediction-icon ${iconClass}">${icon}</span>
-        <span>${displayPrediction}</span>
+      <div class="card-predictions">
+        <div class="prediction-item">
+          <span class="prediction-label">1天</span>
+          <span class="prediction-icon ${icon1d.iconClass}">${icon1d.icon}</span>
+          <span class="prediction-info">${formatPredictionInfo(pred1d)}</span>
+        </div>
+        <div class="prediction-item">
+          <span class="prediction-label">5天</span>
+          <span class="prediction-icon ${icon5d.iconClass}">${icon5d.icon}</span>
+          <span class="prediction-info">${formatPredictionInfo(pred5d)}</span>
+        </div>
+        <div class="prediction-item">
+          <span class="prediction-label">20天</span>
+          <span class="prediction-icon ${icon20d.iconClass}">${icon20d.icon}</span>
+          <span class="prediction-info">${formatPredictionInfo(pred20d)}</span>
+        </div>
       </div>
-      <div class="card-probability">${probabilityPercent} (${displayConfidence})</div>
       <div class="card-summary">${truncatedSummary}</div>
       <div class="card-hint">查看详情 →</div>
     `;

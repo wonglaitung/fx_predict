@@ -150,8 +150,40 @@ body {
   margin-bottom: 0.5rem;
 }
 
+/* Multi-horizon predictions */
+.card-predictions {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  background-color: var(--bg-primary);
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+}
+
+.prediction-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  flex: 1;
+}
+
+.prediction-label {
+  font-size: 0.625rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+
 .prediction-icon {
   font-size: 1.5rem;
+}
+
+.prediction-info {
+  font-size: 0.625rem;
+  color: var(--text-secondary);
+  text-align: center;
+  line-height: 1.2;
 }
 
 .prediction-up { color: var(--color-success); }
