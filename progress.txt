@@ -150,6 +150,41 @@
 
 ## 最后更新
 
+- 日期：2026-03-27（第八次更新 - 配置一致性修复和环境变量加载）
+- 更新者：iFlow CLI
+- 更新内容：
+  - **配置一致性修复**：
+    - 发现 DATA_CONFIG 中包含 CHF 货币对，但 CURRENCY_PAIRS 和 dashboard 配置中没有
+    - 从 DATA_CONFIG['supported_pairs'] 和 DATA_CONFIG['pair_symbols'] 中删除 CHF
+    - 确保所有配置保持一致（6个货币对：EUR, JPY, AUD, GBP, CAD, NZD）
+    - 验证配置一致性通过
+  
+  - **综合分析失败修复**：
+    - 问题：运行 run_full_pipeline.sh 时综合分析失败
+    - 原因：QWEN_API_KEY 环境变量未设置
+    - 解决方案：
+      - 在 comprehensive_analysis.py 开头添加 load_dotenv()
+      - 在 llm_services/qwen_engine.py 开头添加 load_dotenv()
+      - 确保环境变量在导入时就被加载
+    - 更新 .env 文件中的 DATA_FILE 路径为 data/raw/FXRate_20260320.xlsx
+  
+  - **测试验证**：
+    - 单个货币对分析测试通过（EUR）
+    - 所有货币对综合分析测试通过（6个货币对）
+    - 成功生成预测文件：
+      - EUR_multi_horizon_20260327_110527.json
+      - JPY_multi_horizon_20260327_110614.json
+      - AUD_multi_horizon_20260327_110703.json
+      - 等等...
+    - LLM 调用正常，每个货币对分析耗时约 40-50 秒
+  
+  - **Git 提交和推送**：
+    - 提交：fix: add load_dotenv() to load environment variables
+    - 推送 3 个提交到远程仓库（包括之前的数据文件重构和文件上传功能）
+  
+  - **未提交更改**：
+    - 18 个模型文件仍有未提交的更改（需要重新训练后提交）
+
 - 日期：2026-03-27（第七次更新 - 数据文件重构和文件上传功能）
 - 更新者：iFlow CLI
 - 更新内容：

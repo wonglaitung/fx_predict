@@ -334,6 +334,121 @@ handler = RotatingFileHandler('fx_predict.log', maxBytes=10*1024*1024, backupCou
 
 ## 最后更新
 
+- 日期：2026-03-27（第六次更新 - 配置一致性和环境变量加载）
+- 作者：iFlow CLI
+- 版本：6.0 (配置修复 + 环境变量)
+- 更新内容：
+  - **配置一致性的重要性**：
+    - 问题：DATA_CONFIG 中包含 CHF 货币对，但 CURRENCY_PAIRS 和 dashboard 配置中没有
+    - 影响：
+      - 配置不一致导致用户困惑
+      - Dashboard 只显示 6 个货币对，但配置文件声称支持 7 个
+      - 可能导致运行时错误或意外行为
+    - 发现过程：
+      1. 用户提问："为什么配置文件有 7 个货币对，但仪表盘只显示 6 个？"
+      2. 检查 config.py 发现 DATA_CONFIG 包含 CHF
+      3. 检查 CURRENCY_PAIRS 只包含 6 个货币对（EUR, JPY, AUD, GBP, CAD, NZD）
+      4. 检查 dashboard/server.js 的 validPairs 也只包含 6 个
+    - 解决方案：
+      - 从 DATA_CONFIG['supported_pairs'] 中删除 CHF
+      - 从 DATA_CONFIG['pair_symbols'] 中删除 CHF
+      - 验证配置一致性：`sorted(list(CURRENCY_PAIRS.keys())) == sorted(DATA_CONFIG['supported_pairs'])`
+    - 教训：配置文件中的所有相关配置必须保持一致，定期进行一致性检查
+  
+  - **环境变量加载的最佳实践**：
+    - 问题：综合分析失败，错误信息 "QWEN_API_KEY 环境变量未设置"
+    - 排查过程：
+      1. 检查 .env 文件存在且包含 QWEN_API_KEY
+      2. 检查 config.py 中有 load_dotenv() 调用
+      3. 检查 comprehensive_analysis.py 没有调用 load_dotenv()
+      4. 检查 llm_services/qwen_engine.py 也没有调用 load_dotenv()
+    - 根本原因：
+      - config.py 在模块导入时调用 load_dotenv()
+      - comprehensive_analysis.py 和 qwen_engine.py 导入 config.py 时，load_dotenv() 还未被调用
+      - 导致环境变量未被加载
+    - 解决方案：
+      - 在 comprehensive_analysis.py 开头添加 `from dotenv import load_dotenv; load_dotenv()`
+      - 在 llm_services/qwen_engine.py 开头添加 `from dotenv import load_dotenv; load_dotenv()`
+      - 确保环境变量在导入时就被加载
+    - 代码示例：
+      ```python
+      # comprehensive_analysis.py
+      import pandas as pd
+      import logging
+      from typing import Dict, Any
+      import json
+      import time
+      from dotenv import load_dotenv  # 新增
+      load_dotenv()  # 新增
+      
+      from data_services.technical_analysis import TechnicalAnalyzer
+      # ...
+      
+      # llm_services/qwen_engine.py
+      import os
+      import requests
+      import logging
+      from datetime import datetime
+      from dotenv import load_dotenv  # 新增
+      load_dotenv()  # 新增
+      
+      logger = logging.getLogger(__name__)
+      # ...
+      ```
+    - 测试验证：
+      ```bash
+      # 测试前：QWEN_API_KEY 未设置，综合分析失败
+      python3 -m comprehensive_analysis --pair EUR
+      # 错误：QWEN_API_KEY 环境变量未设置
+      
+      # 测试后：QWEN_API_KEY 正常设置，综合分析成功
+      python3 -m comprehensive_analysis --pair EUR
+      # 成功：生成 EUR_multi_horizon_20260327_110208.json
+      ```
+    - 教训：依赖环境变量的模块应该在导入时调用 load_dotenv()，确保环境变量被正确加载
+  
+  - **错误信息的改进**：
+    - 原错误信息："QWEN_API_KEY 环境变量未设置"
+    - 改进建议：添加更详细的错误信息和解决方案
+    - 改进后的错误信息示例：
+      ```python
+      if not api_key:
+          raise ValueError(
+              "QWEN_API_KEY 环境变量未设置\n"
+              "解决方案：\n"
+              "1. 确保 .env 文件存在\n"
+              "2. 在 .env 文件中添加：QWEN_API_KEY=your_api_key\n"
+              "3. 或者使用 --no-llm 参数禁用大模型分析"
+          )
+      ```
+    - 优势：用户可以快速理解问题并找到解决方案
+  
+  - **Git 提交和推送的工作流**：
+    - 提交 1：数据文件重构和文件上传功能
+    - 提交 2：重新训练所有模型
+    - 提交 3：添加 load_dotenv() 修复环境变量加载
+    - 推送：一次性推送所有提交到远程仓库
+    - 优势：
+      1. 每个提交专注于一个功能或修复
+      2. 提交信息清晰，便于代码审查
+      3. 推送前可以检查所有提交是否正确
+  
+  - **未提交更改的处理**：
+    - 18 个模型文件有未提交的更改
+    - 原因：这些是训练后的模型文件，文件较大
+    - 处理方案：
+      1. 可以单独提交模型文件
+      2. 可以在 .gitignore 中忽略模型文件
+      3. 可以使用 Git LFS（Large File Storage）管理大文件
+    - 当前决策：暂时不提交，等待用户确认
+  
+  - **测试验证的重要性**：
+    - 单个货币对测试：EUR 分析成功
+    - 所有货币对测试：6 个货币对全部成功
+    - LLM 调用测试：每个货币对分析耗时 40-50 秒
+    - 文件生成测试：成功生成 JSON 文件
+    - 教训：修复后必须进行全面的测试验证，确保问题真正解决
+
 - 日期：2026-03-27（第五次更新 - 数据文件重构和文件上传功能）
 - 作者：iFlow CLI
 - 版本：5.0 (数据文件重构 + 文件上传)
