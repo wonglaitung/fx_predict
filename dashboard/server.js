@@ -433,6 +433,97 @@ if (require.main === module) {
   app.listen(PORT, () => {
     logInfo(`Server started on port ${PORT}`);
     console.log(`Server running on port ${PORT}`);
+    
+    // 打印所有 API 端点信息
+    console.log('\n================================================================================');
+    console.log('可用的 API 端点');
+    console.log('================================================================================\n');
+    
+    const apiEndpoints = [
+      {
+        method: 'GET',
+        path: '/health',
+        description: '健康检查',
+        params: [],
+        response: '{ status: "ok", uptime, timestamp }'
+      },
+      {
+        method: 'GET',
+        path: '/api/v1/pairs',
+        description: '获取所有货币对信息',
+        params: [],
+        response: '{ pairs: [{ pair, pair_name, current_price, prediction, probability, confidence, llm_analysis }] }'
+      },
+      {
+        method: 'GET',
+        path: '/api/v1/pairs/:pair',
+        description: '获取单个货币对详细信息',
+        params: [
+          { name: 'pair', type: 'string', description: '货币对代码 (EUR, JPY, AUD, GBP, CAD, NZD)' }
+        ],
+        response: '{ metadata, ml_predictions, consistency_analysis, llm_analysis, trading_strategies, technical_indicators, risk_analysis }'
+      },
+      {
+        method: 'GET',
+        path: '/api/v1/strategies',
+        description: '获取所有交易策略',
+        params: [],
+        response: '{ strategies: { pair: [{ horizon, horizon_name, direction, entry_price, stop_loss, take_profit, recommendation, confidence, risk_reward_ratio, position_size }] } }'
+      },
+      {
+        method: 'GET',
+        path: '/api/v1/consistency',
+        description: '获取一致性分析',
+        params: [],
+        response: '{ consistency: { pair: { score, interpretation, all_same, majority_trend, scores_by_horizon, technical_support, technical_indicators_summary } } }'
+      },
+      {
+        method: 'GET',
+        path: '/api/v1/indicators/:pair',
+        description: '获取指定货币对的技术指标',
+        params: [
+          { name: 'pair', type: 'string', description: '货币对代码 (EUR, JPY, AUD, GBP, CAD, NZD)' }
+        ],
+        response: '{ pair, indicators: { trend, momentum, volatility, volume, price_pattern, market_environment } }'
+      },
+      {
+        method: 'GET',
+        path: '/api/v1/risk',
+        description: '获取风险分析',
+        params: [],
+        response: '{ risks: { pair: { warnings, risk_level } } }'
+      },
+      {
+        method: 'POST',
+        path: '/api/v1/upload',
+        description: '上传数据文件',
+        params: [
+          { name: 'file', type: 'file', description: 'Excel 文件 (.xlsx), 最大 10MB' }
+        ],
+        response: '{ success: true, message: "文件上传成功", file: { filename, size, uploaded_at } }'
+      }
+    ];
+    
+    apiEndpoints.forEach((endpoint, index) => {
+      console.log(`${index + 1}. ${endpoint.method} ${endpoint.path}`);
+      console.log(`   描述: ${endpoint.description}`);
+      
+      if (endpoint.params.length > 0) {
+        console.log('   参数:');
+        endpoint.params.forEach(param => {
+          console.log(`     - ${param.name} (${param.type}): ${param.description}`);
+        });
+      } else {
+        console.log('   参数: 无');
+      }
+      
+      console.log(`   响应: ${endpoint.response}`);
+      console.log('');
+    });
+    
+    console.log('================================================================================');
+    console.log(`总计: ${apiEndpoints.length} 个 API 端点`);
+    console.log('================================================================================\n');
   });
 }
 
