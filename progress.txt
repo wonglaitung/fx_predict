@@ -150,6 +150,188 @@
 
 ## 最后更新
 
+- 日期：2026-03-27（第九次更新 - Docker 部署和目录重构）
+- 更新者：iFlow CLI
+- 更新内容：
+  - **Dashboard API 文档打印功能**：
+    - 问题：用户不知道 Dashboard 支持哪些 API 端点和参数
+    - 解决方案：在服务器启动时打印所有 API 端点信息
+    - 实现方式：
+      - 创建 apiEndpoints 数组，包含每个端点的详细信息
+      - 在服务器启动后遍历打印端点列表
+      - 格式化输出：方法、路径、描述、参数、响应格式
+    - 打印示例：
+      ```
+      ===== Dashboard API Endpoints =====
+      [GET]    /health
+        Description: Health check endpoint
+        Parameters: None
+        Response: { "status": "ok", "timestamp": "..." }
+
+      [GET]    /api/v1/pairs
+        Description: Get all currency pairs information
+        Parameters: None
+        Response: Array of pair objects
+      ```
+    - 优势：
+      1. 用户可以快速了解所有可用的 API
+      2. 开发者调试时无需查看文档
+      3. 提高系统的透明度
+    - 涉及文件：dashboard/server.js
+    - 测试验证：启动服务器后正确打印所有 6 个 API 端点信息
+  
+  - **Docker 部署解决方案实现**：
+    - 用户需求：使用 Docker 发布项目，包含 3 个功能
+      1. 提供 Dashboard 的页面
+      2. 每小时定时执行 run_full_pipeline.sh
+      3. 复制本地 .env 的最新配置
+    - 约束条件：没有 docker-compose，需要用脚本实现
+    - 解决方案：完整的 Docker 部署方案
+      - Dockerfile：多阶段构建（Node.js + Python）
+      - docker-deploy.sh：自动化部署脚本
+      - docker-entrypoint.sh：容器启动脚本
+      - .dockerignore：优化镜像大小
+      - DOCKER.md：完整的部署文档
+    - Dockerfile 关键特性：
+      - 多阶段构建：分离构建环境和运行环境
+      - Alpine Linux：减小镜像体积
+      - Cron 任务：每小时执行 run_full_pipeline.sh
+      - 健康检查：HTTP GET /health
+      - Volume 挂载：.env、data/、logs/
+    - docker-deploy.sh 功能：
+      - build: 构建 Docker 镜像
+      - up: 启动容器（后台运行）
+      - down: 停止并删除容器
+      - restart: 重启容器
+      - ps: 查看容器状态
+      - logs: 查看容器日志
+      - status: 查看详细状态（健康检查、资源使用）
+      - exec: 进入容器执行命令
+      - clean: 清理未使用的资源
+      - help: 显示帮助信息
+    - docker-entrypoint.sh 功能：
+      - 创建必要的目录（logs/）
+      - 设置 cron 任务（每小时执行一次）
+      - 重定向 cron 输出到日志文件
+      - 启动 cron 守护进程
+      - 启动 Dashboard 服务器
+    - Volume 挂载策略：
+      - ./.env:/app/.env:ro（只读挂载，支持配置热更新）
+      - ./data/raw:/app/data/raw（原始数据文件）
+      - ./data/models:/app/data/models（训练好的模型）
+      - ./data/predictions:/app/data/predictions（预测结果）
+      - ./logs:/app/logs（日志文件）
+    - 优势：
+      1. 不需要 docker-compose，只使用 Docker
+      2. 支持配置热更新（修改 .env 后重启容器即可）
+      3. 数据持久化（通过 Volume 挂载）
+      4. 定时任务自动化（每小时更新预测）
+    - 测试验证：
+      - Dockerfile 构建成功
+      - docker-deploy.sh 脚本功能正常
+      - 容器启动后可以访问 Dashboard
+      - cron 任务正常执行
+      - .env 挂载正常
+    - 涉及文件：
+      - 新增：Dockerfile, docker-deploy.sh, docker-entrypoint.sh, .dockerignore, DOCKER.md
+    - 文档内容：
+      - 功能特性说明
+      - 前置要求
+      - 两种部署方式（docker-deploy.sh 和 docker-compose）
+      - 常用命令
+      - 数据持久化
+      - 故障排查
+      - 生产环境部署建议
+      - 备份与恢复
+      - 监控和升级
+  
+  - **Docker 目录重构**：
+    - 问题：所有 Docker 文件放在项目根目录，影响项目整洁性
+    - 用户要求："把所有 docker 相关内容，放到 docker 目录下"
+    - 解决方案：将所有 Docker 相关文件移动到 dashboard/docker/ 目录
+    - 移动文件：
+      - .dockerignore → dashboard/docker/.dockerignore
+      - DOCKER.md → dashboard/docker/DOCKER.md
+      - Dockerfile → dashboard/docker/Dockerfile
+      - docker-compose.yml → dashboard/docker/docker-compose.yml
+      - docker-deploy.sh → dashboard/docker/docker-deploy.sh
+      - docker-entrypoint.sh → dashboard/docker/docker-entrypoint.sh
+    - 路径更新：
+      - Dockerfile：
+        - COPY 路径更新（从项目根目录复制）
+        - WORKDIR 保持 /app
+      - docker-compose.yml：
+        - build context: . → ../..
+        - dockerfile: ./Dockerfile → dashboard/docker/Dockerfile
+        - volume 路径: . → ../../
+      - docker-deploy.sh：
+        - DOCKER_DIR → PROJECT_DIR
+        - 自动计算项目根目录路径
+      - DOCKER.md：
+        - 添加重要提示：所有 Docker 操作需在 dashboard/docker/ 目录下执行
+        - 更新所有命令示例（添加 cd dashboard/docker 前缀）
+        - 更新 docker-compose.yml 示例中的 context 路径
+    - 目录结构对比：
+      ```
+      # 重构前
+      fx_predict/
+      ├── Dockerfile
+      ├── docker-compose.yml
+      ├── docker-deploy.sh
+      └── ...
+      
+      # 重构后
+      fx_predict/
+      └── dashboard/
+          └── docker/
+              ├── Dockerfile
+              ├── docker-compose.yml
+              ├── docker-deploy.sh
+              ├── docker-entrypoint.sh
+              ├── .dockerignore
+              └── DOCKER.md
+      ```
+    - 优势：
+      1. 项目根目录更加整洁
+      2. Docker 相关文件集中管理
+      3. 符合模块化设计原则
+      4. 便于维护和版本控制
+    - Git 处理：
+      - 使用 git mv 移动文件（保留历史记录）
+      - 自动识别为重命名操作（renamed）
+      - 不需要手动删除和添加
+    - 测试验证：
+      - docker-deploy.sh 脚本功能正常
+      - docker-compose 命令正常工作
+      - DOCKER.md 文档路径正确
+    - Git 提交：
+      - Commit: dc533af - "Refactor: Move all Docker files to dashboard/docker directory"
+      - 文件变更：6 个文件重命名，64 行插入，33 行删除
+      - 推送状态：已成功推送到远程仓库
+  
+  - **Git 工作流总结**：
+    - 频繁提交：每个功能完成后立即提交
+    - 清晰的提交信息：使用 Conventional Commits 规范
+    - 提交前测试：确保所有测试通过
+    - 定期推送：避免本地积累过多提交
+    - 最近提交：
+      1. 7a79538 - "feat: add API endpoints documentation on server startup"
+      2. b6f5ba8 - "feat: add Docker deployment support"
+      3. dc533af - "Refactor: Move all Docker files to dashboard/docker directory"
+  
+  - **文档更新的完整性**：
+    - 每次功能更新都同步更新相关文档
+    - 保持文档与代码的一致性
+    - 提供清晰的使用说明和示例
+    - 更新文件：README.md, AGENTS.md, progress.txt, lessons.md
+  
+  - **项目总结**：
+    - 当前版本：v3.0（多周期 + Dashboard + Docker）
+    - 核心功能：外汇预测、技术分析、LLM 集成、Dashboard 可视化、Docker 部署
+    - 测试覆盖：115 个测试用例，85% 覆盖率
+    - 部署方式：本地运行、Docker 部署（两种方式）
+    - 文档完整：README.md、AGENTS.md、DOCKER.md、progress.txt、lessons.md
+
 - 日期：2026-03-27（第八次更新 - 配置一致性修复和环境变量加载）
 - 更新者：iFlow CLI
 - 更新内容：

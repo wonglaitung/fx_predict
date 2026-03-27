@@ -334,6 +334,260 @@ handler = RotatingFileHandler('fx_predict.log', maxBytes=10*1024*1024, backupCou
 
 ## 最后更新
 
+- 日期：2026-03-27（第七次更新 - Docker 部署和目录重构）
+- 作者：iFlow CLI
+- 版本：7.0 (Docker + 目录重构)
+- 更新内容：
+  - **API 文档自动生成的价值**：
+    - 问题：用户不知道 Dashboard 支持哪些 API 端点和参数
+    - 解决方案：在服务器启动时自动打印所有 API 端点信息
+    - 实现方式：
+      1. 创建结构化的端点数组（apiEndpoints）
+      2. 每个端点包含：方法、路径、描述、参数、响应格式
+      3. 服务器启动后遍历数组并格式化打印
+    - 代码示例：
+      ```javascript
+      const apiEndpoints = [
+        {
+          method: 'GET',
+          path: '/health',
+          description: 'Health check endpoint',
+          parameters: 'None',
+          response: '{ "status": "ok", "timestamp": "..." }'
+        },
+        // ... 其他端点
+      ];
+      
+      // 启动后打印
+      server.listen(port, host, () => {
+        logInfo('===== Dashboard API Endpoints =====');
+        apiEndpoints.forEach(endpoint => {
+          console.log(`[${endpoint.method}]    ${endpoint.path}`);
+          console.log(`  Description: ${endpoint.description}`);
+          console.log(`  Parameters: ${endpoint.parameters}`);
+          console.log(`  Response: ${endpoint.response}`);
+          console.log('');
+        });
+      });
+      ```
+    - 优势：
+      1. 提高系统透明度
+      2. 减少文档维护成本（代码即文档）
+      3. 方便开发者调试和测试
+      4. 用户可以快速了解所有可用功能
+    - 最佳实践：
+      - 端点信息应该与实际实现保持同步
+      - 描述应该简洁明了
+      - 参数和响应格式应该准确
+    - 教训：API 文档应该随着代码更新，避免文档与实现不一致
+  
+  - **Docker 部署的模块化设计**：
+    - 问题：如何在没有 docker-compose 的情况下实现完整的 Docker 部署
+    - 解决方案：使用脚本封装 Docker 命令，提供类似 docker-compose 的体验
+    - 架构设计：
+      - Dockerfile：定义镜像构建规则
+      - docker-deploy.sh：封装常用 Docker 命令
+      - docker-entrypoint.sh：容器启动脚本
+      - DOCKER.md：完整的部署文档
+    - docker-deploy.sh 关键命令：
+      ```bash
+      build() {
+        docker build -t $IMAGE_NAME -f $DOCKERFILE $PROJECT_DIR
+      }
+      
+      up() {
+        docker run -d \
+          --name $CONTAINER_NAME \
+          --restart unless-stopped \
+          -p $PORT:$PORT \
+          -v $PROJECT_DIR/.env:/app/.env:ro \
+          -v $PROJECT_DIR/data/raw:/app/data/raw \
+          -v $PROJECT_DIR/data/models:/app/data/models \
+          -v $PROJECT_DIR/data/predictions:/app/data/predictions \
+          -v $PROJECT_DIR/logs:/app/logs \
+          $IMAGE_NAME
+      }
+      ```
+    - 优势：
+      1. 用户不需要了解复杂的 Docker 命令
+      2. 提供统一的接口（build, up, down, restart）
+      3. 支持配置热更新（Volume 挂载 .env）
+      4. 数据持久化（Volume 挂载数据目录）
+    - 教训：简化部署流程可以显著降低用户使用门槛
+  
+  - **Docker 多阶段构建的优势**：
+    - 问题：如何减小 Docker 镜像体积
+    - 解决方案：使用多阶段构建分离构建环境和运行环境
+    - 代码示例：
+      ```dockerfile
+      # 构建阶段
+      FROM node:18-alpine AS dashboard-builder
+      WORKDIR /app/dashboard
+      COPY dashboard/package*.json ./
+      RUN npm ci --only=production
+      COPY dashboard/ ./
+      
+      # 运行阶段
+      FROM python:3.10-slim
+      WORKDIR /app
+      # ... 安装 Python 依赖
+      COPY --from=dashboard-builder /app/dashboard /app/dashboard
+      # ... 复制其他文件
+      ```
+    - 优势：
+      1. 镜像体积更小（不包含构建工具和源代码）
+      2. 构建速度更快（利用缓存）
+      3. 安全性更高（不暴露构建细节）
+    - 教训：多阶段构建是生产环境 Docker 镜像的最佳实践
+  
+  - **定时任务在 Docker 中的实现**：
+    - 问题：如何在 Docker 容器中实现定时任务
+    - 解决方案：使用 cron 服务和 docker-entrypoint.sh 脚本
+    - 代码示例：
+      ```bash
+      # docker-entrypoint.sh
+      # 创建日志目录
+      mkdir -p /app/logs
+      
+      # 设置 cron 任务（每小时执行一次）
+      echo "0 * * * * cd /app && bash run_full_pipeline.sh >> /app/logs/pipeline.log 2>&1" > /tmp/crontab
+      crontab /tmp/crontab
+      
+      # 重定向 cron 输出到日志文件
+      cron -f 2>&1 | tee /app/logs/cron.log &
+      
+      # 启动 Dashboard 服务器
+      cd /app/dashboard && npm start
+      ```
+    - 关键点：
+      1. 使用 `cron -f` 保持前台运行（容器不会退出）
+      2. 重定向输出到日志文件便于调试
+      3. 在后台运行 cron，前台运行主服务
+    - 教训：容器中的定时任务需要确保进程在前台运行，否则容器会退出
+  
+  - **Volume 挂载的最佳实践**：
+    - 问题：如何在 Docker 容器中实现数据持久化和配置热更新
+    - 解决方案：使用 Volume 挂载宿主机目录
+    - 关键配置：
+      ```yaml
+      volumes:
+        - ./.env:/app/.env:ro              # 只读挂载，支持配置热更新
+        - ./data/raw:/app/data/raw         # 原始数据文件
+        - ./data/models:/app/data/models   # 训练好的模型
+        - ./data/predictions:/app/data/predictions  # 预测结果
+        - ./logs:/app/logs                 # 日志文件
+      ```
+    - 最佳实践：
+      1. 配置文件使用只读挂载（:ro）防止容器内修改
+      2. 数据目录使用读写挂载，支持数据持久化
+      3. 日志目录单独挂载，便于查看和清理
+    - 优势：
+      1. 修改 .env 文件后重启容器即可生效
+      2. 数据不会因为容器删除而丢失
+      3. 日志可以在宿主机直接查看
+    - 教训：合理的 Volume 挂载策略是 Docker 部署成功的关键
+  
+  - **健康检查的重要性**：
+    - 问题：如何监控容器是否正常运行
+    - 解决方案：在 Dockerfile 中配置健康检查
+    - 代码示例：
+      ```dockerfile
+      HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=40s \
+        CMD node -e "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+      ```
+    - 参数说明：
+      - interval: 检查间隔（30秒）
+      - timeout: 超时时间（10秒）
+      - retries: 重试次数（3次）
+      - start-period: 启动宽限期（40秒）
+    - 优势：
+      1. 自动检测容器是否正常运行
+      2. 失败时自动重启（配置 restart: unless-stopped）
+      3. 便于监控和告警
+    - 教训：健康检查是生产环境容器的必备功能
+  
+  - **目录重构的最佳实践**：
+    - 问题：Docker 相关文件散落在项目根目录，影响项目整洁性
+    - 解决方案：将所有 Docker 相关文件集中到 dashboard/docker/ 目录
+    - Git 处理：
+      ```bash
+      # 使用 git mv 移动文件（保留历史记录）
+      git mv Dockerfile dashboard/docker/Dockerfile
+      git mv docker-compose.yml dashboard/docker/docker-compose.yml
+      git mv docker-deploy.sh dashboard/docker/docker-deploy.sh
+      # ...
+      
+      # Git 会自动识别为重命名操作
+      git status
+      # 输出：renamed: Dockerfile -> dashboard/docker/Dockerfile
+      ```
+    - 路径计算：
+      ```bash
+      # docker-deploy.sh 中的路径计算
+      PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+      # 从 dashboard/docker 目录返回到项目根目录
+      ```
+    - 优势：
+      1. 项目根目录更加整洁
+      2. 相关文件集中管理，便于维护
+      3. 符合模块化设计原则
+      4. Git 自动识别为重命名，保留历史记录
+    - 教训：项目初始化时就应该规划好目录结构，避免后期重构
+  
+  - **相对路径和绝对路径的选择**：
+    - 问题：如何在 Dockerfile 和脚本中正确引用文件
+    - 解决方案：根据上下文选择相对路径或绝对路径
+    - 规则：
+      1. Dockerfile COPY：使用相对于 build context 的路径
+      2. 脚本内部：使用绝对路径或相对于脚本位置的路径
+      3. Volume 挂载：使用相对于 docker-compose.yml 的路径
+    - 示例：
+      ```dockerfile
+      # Dockerfile（build context 是项目根目录）
+      COPY requirements.txt ./                  # 相对于 build context
+      COPY data_services ./data_services       # 相对于 build context
+      COPY ml_services ./ml_services           # 相对于 build context
+      ```
+      ```yaml
+      # docker-compose.yml（在 dashboard/docker/ 目录）
+      build:
+        context: ../..                          # 项目根目录
+        dockerfile: dashboard/docker/Dockerfile
+      volumes:
+        - ../../.env:/app/.env:ro              # 相对于 docker-compose.yml
+      ```
+    - 教训：Docker 中的路径引用需要根据上下文仔细设计
+  
+  - **文档自动化的价值**：
+    - 问题：如何确保文档与代码保持同步
+    - 解决方案：代码中生成文档内容，减少手动维护
+    - 实现：
+      1. API 文档：从代码中的端点数组生成
+      2. 命令文档：从脚本中的 help 函数生成
+      3. 配置文档：从配置验证函数生成
+    - 优势：
+      1. 文档与代码自动同步
+      2. 减少手动维护成本
+      3. 降低文档过时的风险
+    - 教训：代码即文档（Documentation as Code）是现代软件开发的最佳实践
+  
+  - **Docker Compose vs Shell 脚本的权衡**：
+    - 问题：应该使用 Docker Compose 还是自定义脚本
+    - 对比：
+      | 特性 | Docker Compose | Shell 脚本 |
+      |------|----------------|------------|
+      | 标准化 | ✅ 行业标准 | ❌ 自定义 |
+      | 学习曲线 | ⚠️ 需要学习 YML | ✅ 简单易懂 |
+      | 灵活性 | ⚠️ 受限于 Compose | ✅ 完全控制 |
+      | 多容器 | ✅ 天然支持 | ⚠️ 需要额外实现 |
+      | 单容器 | ✅ 简洁 | ✅ 简洁 |
+    - 选择建议：
+      - 多容器应用：使用 Docker Compose
+      - 单容器应用：两者都可以
+      - 没有 Docker Compose：使用 Shell 脚本
+      - 需要自定义逻辑：使用 Shell 脚本
+    - 教训：根据实际需求选择合适的工具，不要过度设计
+
 - 日期：2026-03-27（第六次更新 - 配置一致性和环境变量加载）
 - 作者：iFlow CLI
 - 版本：6.0 (配置修复 + 环境变量)
