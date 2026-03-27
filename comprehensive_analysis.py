@@ -171,7 +171,7 @@ ML 预测：{'上涨' if ml_pred == 1 else '下跌'}，概率 {ml_prob:.2%}，�
                     'K': latest.get('K', 'N/A'),
                     'D': latest.get('D', 'N/A'),
                     'J': latest.get('J', 'N/A'),
-                    'Williams%R': latest.get('WilliamsR_14', 'N/A'),
+                    'Williams%R': latest.get('Williams_R_14', 'N/A'),
                     'CCI': latest.get('CCI20', 'N/A'),
                 },
                 '波动类指标': {

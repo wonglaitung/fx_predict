@@ -205,10 +205,10 @@ class TestMomentumIndicators:
         """测试威廉指标"""
         result = analyzer.compute_all_indicators(sample_data)
 
-        assert 'WilliamsR_14' in result.columns
+        assert 'Williams_R_14' in result.columns
 
         # 威廉指标应该在-100到0范围内
-        valid_wr = result['WilliamsR_14'].dropna()
+        valid_wr = result['Williams_R_14'].dropna()
         assert (valid_wr >= -100).all()
         assert (valid_wr <= 0).all()
 

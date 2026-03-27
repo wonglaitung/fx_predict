@@ -389,8 +389,8 @@ def test_technical_indicator_validation():
         assert (valid_bb['BB_Middle'] >= valid_bb['BB_Lower']).all(), "布林带中轨应 >= 下轨"
 
     # 验证威廉指标范围：[-100, 0]
-    if 'WilliamsR_14' in df_with_indicators.columns:
-        valid_wr = df_with_indicators['WilliamsR_14'].dropna()
+    if 'Williams_R_14' in df_with_indicators.columns:
+        valid_wr = df_with_indicators['Williams_R_14'].dropna()
         assert (valid_wr >= -100).all() and (valid_wr <= 0).all(), "威廉指标应在 [-100, 0] 范围内"
 
     # 验证 CCI 范围：通常在 [-200, 200] 范围内（可能超出）

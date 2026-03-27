@@ -82,7 +82,7 @@ class TechnicalAnalyzer:
         result['J'] = kdj_data['J']
 
         # Williams %R
-        result['WilliamsR_14'] = self.compute_williams_r(result, period=14)
+        result['Williams_R_14'] = self.compute_williams_r(result, period=14)
 
         # CCI
         result['CCI20'] = self.compute_cci(result, period=20)

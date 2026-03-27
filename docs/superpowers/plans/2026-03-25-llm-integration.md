@@ -283,7 +283,7 @@ ML 预测：{'上涨' if ml_pred == 1 else '下跌'}，概率 {ml_prob:.2%}，�
                 'K': latest.get('K', 'N/A'),
                 'D': latest.get('D', 'N/A'),
                 'J': latest.get('J', 'N/A'),
-                'Williams%R': latest.get('WilliamsR_14', 'N/A'),
+                'Williams%R': latest.get('Williams_R_14', 'N/A'),
                 'CCI': latest.get('CCI20', 'N/A'),
             },
             '波动类指标': {
@@ -446,7 +446,7 @@ def test_generate_llm_analysis_with_performance_monitoring():
         'K': [50.0] * 100,
         'D': [50.0] * 100,
         'J': [50.0] * 100,
-        'WilliamsR_14': [-50.0] * 100,
+        'Williams_R_14': [-50.0] * 100,
         'CCI20': [0.0] * 100,
         'Volatility_20d': [0.01] * 100,
         'SMA5': [1.0] * 100,

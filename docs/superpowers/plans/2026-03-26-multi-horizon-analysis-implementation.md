@@ -284,7 +284,7 @@ class MultiHorizonContextBuilder:
                 indicators['trend'][col] = float(latest[col])
         
         # 动量类指标
-        momentum_cols = ['RSI14', 'K', 'D', 'J', 'WilliamsR_14', 'CCI20']
+        momentum_cols = ['RSI14', 'K', 'D', 'J', 'Williams_R_14', 'CCI20']
         for col in momentum_cols:
             if col in latest and pd.notna(latest[col]):
                 indicators['momentum'][col] = float(latest[col])

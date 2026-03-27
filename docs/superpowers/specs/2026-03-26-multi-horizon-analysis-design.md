@@ -1554,7 +1554,7 @@ python3 -m ml_services.fx_trading_model --mode predict --pair EUR
 - ADX, DI_Plus, DI_Minus (3个)
 
 **动量类指标（6 个）**：
-- RSI14, K, D, J, WilliamsR_14, CCI20
+- RSI14, K, D, J, Williams_R_14, CCI20
 
 **波动类指标（6 个）**：
 - ATR14, BB_Upper, BB_Middle, BB_Lower
@@ -1577,7 +1577,7 @@ python3 -m ml_services.fx_trading_model --mode predict --pair EUR
 - ADX, DI_Plus, DI_Minus (3个)
 
 **动量类指标（6 个）**：
-- RSI14, K, D, J, WilliamsR_14, CCI20
+- RSI14, K, D, J, Williams_R_14, CCI20
 
 **波动类指标（6 个）**：
 - ATR14, BB_Upper, BB_Middle, BB_Lower
