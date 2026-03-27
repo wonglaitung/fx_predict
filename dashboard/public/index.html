@@ -98,11 +98,20 @@
   <!-- Analysis Sidebar -->
   <div id="analysisSidebar" class="sidebar">
     <div class="sidebar-header">
-      <h2 class="sidebar-title">大模型分析详情</h2>
+      <h2 class="sidebar-title" id="sidebarTitle">大模型分析详情</h2>
+      <div class="sidebar-tabs" id="sidebarTabs">
+        <button class="tab-btn" data-tab="llm">大模型分析</button>
+        <button class="tab-btn" data-tab="indicators">技术指标</button>
+      </div>
       <button id="closeSidebar" class="close-btn">&times;</button>
     </div>
     <div id="sidebarContent" class="sidebar-content">
-      <!-- Content will be populated by JavaScript -->
+      <div id="llmTab" class="tab-content">
+        <!-- 大模型分析内容（现有，由JS填充） -->
+      </div>
+      <div id="indicatorsTab" class="tab-content">
+        <!-- 技术指标详情内容（新增，由JS填充） -->
+      </div>
     </div>
   </div>
 
