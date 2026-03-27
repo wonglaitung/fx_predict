@@ -1,4 +1,5 @@
 import os
+import random
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
@@ -68,6 +69,11 @@ class FXTradingModel:
             训练指标字典
         """
         self.logger.info(f"开始训练 {pair} 模型，周期 {self.horizon} 天...")
+
+        # 设置全局随机种子以确保可重现性
+        random_seed = self.config.get('random_seed', 42)
+        random.seed(random_seed)
+        np.random.seed(random_seed)
 
         # 1. 计算技术指标
         data = self.technical_analyzer.compute_all_indicators(data)
