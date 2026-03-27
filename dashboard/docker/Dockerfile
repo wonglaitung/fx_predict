@@ -26,6 +26,10 @@ RUN apk add --no-cache \
     musl-dev \
     g++ \
     make \
+    pkgconfig \
+    openmp-dev \
+    py3-pythran \
+    cython \
     && rm -rf /var/cache/apk/*
 
 # 设置工作目录
