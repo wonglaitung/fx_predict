@@ -1111,3 +1111,307 @@ handler = RotatingFileHandler('fx_predict.log', maxBytes=10*1024*1024, backupCou
     - 在格式化器中添加 Schema 验证
     - 7 个必需部分：metadata, ml_predictions, consistency_analysis, llm_analysis, trading_strategies, technical_indicators, risk_analysis
     - 验证在写入文件前进行，确保输出质量
+- 日期：2026-03-27（第八次更新 - Docker 容器化部署）
+- 作者：iFlow CLI
+- 版本：8.0 (Docker 部署)
+- 更新内容：
+  - **Alpine Linux 的局限性**：
+    - 问题：Alpine Linux 缺少预编译 wheel，需要编译 catboost 和 scikit-learn
+    - 尝试修复（7次失败）：
+      1. 添加 --break-system-packages 标志
+      2. 添加 gcc, g++, make, musl-dev
+      3. 添加 pkgconfig, openmp-dev
+      4. 添加 python3-dev
+      5. 约束 scikit-learn 版本到 1.2.x
+      6. 移除不可用的包（py3-pythran, cython）
+      7. 添加各种编译依赖
+    - 失败原因：
+      - Alpine Linux 使用 musl libc，与 glibc 不兼容
+      - 大多数 Python 包没有 musllinux wheel
+      - 编译过程复杂，需要大量编译工具和依赖
+      - 编译时间长，容易出错
+    - 最终解决方案：从 Alpine Linux 切换到 Debian 12（python:3.12-slim）
+    - 成功原因：
+      - Debian 使用 glibc，与大多数 Python 包兼容
+      - 大多数包有预编译 wheel（manylinux）
+      - 编译环境更完善
+      - 文档和支持更好
+    - 结果：
+      - 镜像大小：1.48GB（Alpine 会更小，但构建成功率低）
+      - 构建时间：约 4 分钟（Alpine 可能更慢，因为需要编译）
+      - 构建成功率：100%（Alpine 多次失败）
+    - 教训：**选择操作系统时，考虑包的可用性和兼容性，而不仅仅是镜像大小**
+  
+  - **Docker 构建上下文的正确设置**：
+    - 问题：错误 "lstat dashboard: no such file or directory"
+    - 原因：build context 设置不正确
+    - 解决方案：
+      - 使用项目根目录作为 build context：`docker build -t fx-predict -f dashboard/docker/Dockerfile .`
+      - 所有 COPY 路径相对于 build context（项目根目录）
+      - Dockerfile 中的路径示例：
+        ```dockerfile
+        COPY requirements.txt ./
+        COPY dashboard/package*.json ./
+        COPY dashboard/docker/docker-entrypoint.sh /usr/local/bin/
+        ```
+    - docker-deploy.sh 修复：
+      ```bash
+      # 错误：从 dashboard/docker/ 目录运行
+      cd dashboard/docker
+      docker build -t fx-predict ./
+      
+      # 正确：切换到项目根目录运行
+      cd /data/fx_predict
+      docker build -t fx-predict -f dashboard/docker/Dockerfile .
+      
+      # 或者在脚本中使用子 shell
+      (
+        cd "$PROJECT_DIR"
+        docker build -t fx-predict -f dashboard/docker/Dockerfile .
+      )
+      ```
+    - 教训：**build context 是 Docker 构建的工作目录，所有 COPY 路径必须相对于它**
+  
+  - **Python 版本和包管理器**：
+    - 问题：Python 3.11+ 的外部管理环境错误
+    - 错误信息："This environment is externally managed"
+    - 原因：PEP 668 规定系统 Python 不能被 pip 修改
+    - 解决方案：
+      - Alpine：添加 `--break-system-packages` 标志
+      - Debian：不需要此标志（python:3.12-slim 不是系统 Python）
+    - 教训：**不同 Linux 发行版对 Python 管理有不同的策略，需要适配**
+  
+  - **多阶段构建的价值**：
+    - 问题：构建过程包含多个步骤（Dashboard 构建 + Python 环境 + 应用代码）
+    - 解决方案：使用多阶段构建
+    - 优势：
+      - 分离构建和运行环境
+      - 减小最终镜像大小（不包含构建工具）
+      - 提高构建缓存效率
+      - 支持并行构建
+    - 示例：
+      ```dockerfile
+      # 第一阶段：构建 Dashboard
+      FROM node:18-alpine AS dashboard-builder
+      WORKDIR /app/dashboard
+      COPY dashboard/package*.json ./
+      RUN npm ci --only=production
+      COPY dashboard/ ./
+      
+      # 第二阶段：最终镜像
+      FROM python:3.12-slim
+      COPY requirements.txt ./
+      RUN pip install -r requirements.txt
+      COPY --from=dashboard-builder /app/dashboard ./dashboard
+      ```
+    - 教训：**多阶段构建可以优化镜像大小和构建速度**
+  
+  - **Volume 挂载的最佳实践**：
+    - 问题：容器删除后数据丢失
+    - 解决方案：使用 Volume 挂载
+    - 挂载策略：
+      - 配置文件：`.env:/app/.env:ro`（只读，避免容器修改）
+      - 数据目录：`data/raw:/app/data/raw`（原始数据）
+      - 模型目录：`data/models:/app/data/models`（训练模型）
+      - 预测目录：`data/predictions:/app/data/predictions`（预测结果）
+      - 日志目录：`logs:/app/logs`（日志文件）
+    - 优势：
+      - 数据持久化，容器删除不丢失
+      - 宿主机可以直接查看和修改数据
+      - 便于调试和数据备份
+    - 教训：**使用 Volume 挂载实现数据持久化和数据共享**
+  
+  - **健康检查的重要性**：
+    - 问题：容器启动后应用崩溃，但容器仍然运行
+    - 解决方案：添加健康检查
+    - 配置示例：
+      ```dockerfile
+      HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+        CMD node -e "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+      ```
+    - 参数说明：
+      - interval：检查间隔（30秒）
+      - timeout：超时时间（10秒）
+      - start-period：启动宽限期（40秒，启动期间不算失败）
+      - retries：重试次数（3次）
+    - 教训：**健康检查可以自动监控容器状态，及时发现异常**
+  
+  - **日志管理的最佳实践**：
+    - 问题：日志文件无限增长，占满磁盘空间
+    - 解决方案：限制日志大小和数量
+    - 配置示例：
+      ```yaml
+      logging:
+        driver: "json-file"
+        options:
+          max-size: "10m"  # 每个日志文件最大 10MB
+          max-file: "3"     # 保留最多 3 个日志文件
+      ```
+    - 优势：
+      - 限制磁盘占用（最多 30MB）
+      - 自动轮转，避免日志文件过大
+      - 保留最近的日志，便于调试
+    - 教训：**限制日志大小和数量，避免磁盘空间耗尽**
+  
+  - **资源限制的配置**：
+    - 问题：容器占用过多系统资源，影响其他应用
+    - 解决方案：配置 CPU 和内存限制
+    - 配置示例：
+      ```yaml
+      deploy:
+        resources:
+          limits:
+            cpus: '2'      # 最大 2 核 CPU
+            memory: 2G     # 最大 2GB 内存
+          reservations:
+            cpus: '0.5'    # 预留 0.5 核 CPU
+            memory: 512M   # 预留 512MB 内存
+      ```
+    - 优势：
+      - 防止容器占用过多系统资源
+      - 确保关键服务有足够的资源
+      - 提高系统稳定性
+    - 教训：**配置资源限制，防止容器占用过多系统资源**
+  
+  - **.dockerignore 文件的重要性**：
+    - 问题：Docker 构建上下文过大，构建时间长
+    - 原因：包含了不必要的文件（如 .git, node_modules, __pycache__）
+    - 解决方案：创建 .dockerignore 文件
+    - 配置示例：
+      ```
+      # Git
+      .git/
+      .gitignore
+      
+      # Python
+      __pycache__/
+      *.py[cod]
+      *.so
+      
+      # Node
+      node_modules/
+      
+      # 数据文件（通过 volume 挂载）
+      data/raw/*.xlsx
+      data/models/*.pkl
+      ```
+    - 优势：
+      - 减小构建上下文大小
+      - 加快构建速度
+      - 避免将敏感文件包含到镜像中
+    - 教训：**使用 .dockerignore 文件排除不必要的文件，减小构建上下文**
+  
+  - **脚本封装 Docker 命令的价值**：
+    - 问题：Docker 命令复杂，用户难以记忆和使用
+    - 解决方案：创建 docker-deploy.sh 脚本封装 Docker 命令
+    - 脚本功能：
+      - build：构建 Docker 镜像
+      - up：启动容器（后台运行）
+      - down：停止并删除容器
+      - restart：重启容器
+      - ps：查看容器状态
+      - logs：查看容器日志
+      - exec：在容器中执行命令
+      - status：查看详细状态
+      - clean：清理未使用的镜像和容器
+    - 优势：
+      - 简化用户操作
+      - 统一命令接口
+      - 隐藏 Docker 命令的复杂性
+      - 添加额外的功能（如颜色输出、错误处理）
+    - 教训：**使用脚本封装复杂的 Docker 命令，提高用户体验**
+  
+  - **容器启动脚本的优雅处理**：
+    - 问题：容器启动后，进程崩溃但容器仍然运行
+    - 解决方案：使用 docker-entrypoint.sh 作为容器启动脚本
+    - 脚本功能：
+      - 启动 Dashboard 服务器（后台运行）
+      - 配置 cron 定时任务（每小时执行 run_full_pipeline.sh）
+      - 日志重定向到 /app/logs/cron.log 和 /app/logs/pipeline.log
+      - 信号处理：优雅退出
+    - 代码示例：
+      ```bash
+      # 启动 Dashboard（后台）
+      cd /app/dashboard && node server.js > /app/logs/dashboard.log 2>&1 &
+      
+      # 配置 cron 任务
+      echo "0 * * * * cd /app && bash run_full_pipeline.sh >> /app/logs/pipeline.log 2>&1" | crontab -
+      
+      # 启动 cron 守护进程
+      crond -f 2>&1 | tee /app/logs/cron.log
+      
+      # 信号处理
+      trap 'echo "Received signal, shutting down..."; kill $(jobs -p); exit 0' SIGTERM SIGINT
+      
+      # 等待所有后台进程
+      wait
+      ```
+    - 教训：**使用容器启动脚本管理多个进程，实现优雅退出**
+  
+  - **Docker 文档的重要性**：
+    - 问题：用户不知道如何使用 Docker 部署
+    - 解决方案：创建详细的部署文档（DOCKER.md，575行）
+    - 文档内容：
+      - 功能特性说明
+      - 前置要求
+      - 快速开始指南
+      - 两种部署方式（docker-deploy.sh 和 docker-compose）
+      - 常用命令
+      - 故障排查
+      - 备份与恢复
+      - 监控
+      - 升级
+      - 性能优化
+    - 优势：
+      - 降低使用门槛
+      - 减少用户疑问
+      - 提高文档化程度
+    - 教训：**详细的文档是项目成功的基础，降低用户学习成本**
+  
+  - **版本约束的重要性**：
+    - 问题：pip 总是选择最新版本，即使最新版本需要编译
+    - 解决方案：使用精确的版本范围
+    - 示例：
+      ```txt
+      # 错误：可能选择 1.8.0（需要编译）
+      scikit-learn>=1.2.0
+      
+      # 正确：强制选择 1.2.x（有预编译 wheel）
+      scikit-learn>=1.2.0,<1.3.0
+      ```
+    - 优势：
+      - 确保版本兼容性
+      - 避免不必要的编译
+      - 加快构建速度
+    - 教训：**使用精确的版本范围约束，确保包的可用性和兼容性**
+  
+  - **Node.js 在 Python 容器中的安装**：
+    - 问题：python:3.12-slim 不包含 Node.js
+    - 解决方案：通过 NodeSource 仓库安装 Node.js 18
+    - 代码示例：
+      ```dockerfile
+      # 安装 Node.js 18
+      RUN apt-get update && apt-get install -y --no-install-recommends \
+          curl \
+          bash \
+          && curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+          && apt-get install -y --no-install-recommends nodejs \
+          && rm -rf /var/lib/apt/lists/*
+      ```
+    - 优势：
+      - 使用官方 NodeSource 仓库
+      - 可以安装任意版本的 Node.js
+      - 保持容器最小化
+    - 教训：**在 Python 容器中安装 Node.js 时，使用 NodeSource 仓库确保兼容性**
+  
+  - **总结**：
+    - **操作系统选择**：考虑包的可用性和兼容性，而非仅仅是镜像大小
+    - **构建上下文**：正确设置 build context，所有 COPY 路径相对于它
+    - **多阶段构建**：优化镜像大小和构建速度
+    - **Volume 挂载**：实现数据持久化和数据共享
+    - **健康检查**：自动监控容器状态
+    - **日志管理**：限制日志大小和数量
+    - **资源限制**：防止容器占用过多系统资源
+    - **脚本封装**：简化用户操作
+    - **文档完整性**：详细的文档是项目成功的基础
+    - **版本约束**：确保包的可用性和兼容性
