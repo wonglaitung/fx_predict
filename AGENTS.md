@@ -1204,7 +1204,8 @@ cat /app/logs/cron.log
 ## 开发者
 
 - **创建时间**：2026-03-25
-- **版本**：4.0（多周期 + Dashboard + Docker）
+- **最后更新**：2026-03-27
+- **版本**：5.0（多周期 + Dashboard + Docker + Yahoo Finance 数据集成）
 - **Python 版本**：3.10+
 - **Node.js 版本**：18+
 - **Docker 版本**：20.10+
@@ -1213,6 +1214,7 @@ cat /app/logs/cron.log
 - **前端技术**：HTML5, CSS3, JavaScript, Chart.js
 - **测试框架**：pytest, Jest
 - **容器化**：Docker, Docker Compose（可选）
+- **数据源**：Yahoo Finance (yfinance)
 
 ## 许可证
 

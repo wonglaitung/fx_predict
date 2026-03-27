@@ -178,26 +178,7 @@ cp .env.example .env
 
 系统支持多种数据获取方式：
 
-**方式一：使用 Yahoo Finance 自动获取（推荐）**
-
-```bash
-# 获取所有货币对数据（6年历史）
-python3 fetch_fx_data.py --start-date 2020-01-01 --end-date 2026-03-27 --merge
-
-# 获取指定货币对
-python3 fetch_fx_data.py --pairs EUR JPY --merge
-
-# 只获取最近一年数据
-python3 fetch_fx_data.py --start-date 2025-03-27 --end-date 2026-03-27 --merge
-```
-
-**数据特点**：
-- 数据源：Yahoo Finance（免费且稳定）
-- 数据量：1622 条记录/货币对（6年历史）
-- 只包含交易日数据（周一至周五）
-- 不包含周末和节假日数据
-
-**方式二：通过 run_full_pipeline.sh 自动获取**
+**方式一：通过 run_full_pipeline.sh 自动获取（推荐）**
 
 ```bash
 # 获取最新数据并运行完整流程
@@ -210,7 +191,7 @@ python3 fetch_fx_data.py --start-date 2025-03-27 --end-date 2026-03-27 --merge
 ./run_full_pipeline.sh --fetch-yahoo --yahoo-pairs EUR JPY
 ```
 
-**方式三：使用已有 Excel 数据文件**
+**方式二：使用已有 Excel 数据文件**
 
 数据文件需要满足以下要求：
 - 工作表名称为货币对代码（如 EUR、JPY）
