@@ -14,22 +14,15 @@ COPY dashboard/ ./
 
 # ========================================
 # 第二阶段：最终镜像
-FROM node:18-alpine
+FROM python:3.12-slim
 
-# 安装 Python 3 和必要工具
-RUN apk add --no-cache \
-    python3 \
-    python3-dev \
-    py3-pip \
-    bash \
+# 安装 Node.js 和必要工具
+RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
-    gcc \
-    musl-dev \
-    g++ \
-    make \
-    pkgconfig \
-    openmp-dev \
-    && rm -rf /var/cache/apk/*
+    bash \
+    && curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && rm -rf /var/lib/apt/lists/*
 
 # 设置工作目录
 WORKDIR /app
@@ -44,8 +37,7 @@ COPY ml_services/ ./ml_services/
 COPY llm_services/ ./llm_services/
 
 # 安装 Python 依赖
-RUN pip3 install --break-system-packages --no-cache-dir -r requirements.txt
-
+    RUN pip install --no-cache-dir -r requirements.txt
 # 从第一阶段复制 Dashboard
 COPY --from=dashboard-builder /app/dashboard ./dashboard
 
