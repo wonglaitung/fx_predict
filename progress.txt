@@ -164,6 +164,158 @@
 
 ## 最后更新
 
+- 日期：2026-03-27（第十三次更新 - 数据质量修复和UI优化）
+- 更新者：iFlow CLI
+- 更新内容：
+  - **数据去重功能实现**：
+    - 问题：布林带（BB_Upper/BB_Middle/BB_Lower）、ADX等技术指标显示为0
+    - 根本原因：数据文件包含重复的日期行（最后10行都是2026-03-20，价格相同）
+    - 分析过程：
+      1. 检查数据文件：发现338行数据，最后10行日期相同
+      2. 手动计算布林带：当最后20天价格相同时，标准差为0，导致布林带 collapsed
+      3. 确认问题：重复日期导致技术指标计算异常
+    - 解决方案：在 `excel_loader.py` 的 `_preprocess()` 方法中添加自动去重
+    - 实现代码：
+      ```python
+      # 自动去重：删除重复的日期行，每个日期只保留第一行
+      if 'Date' in df.columns:
+          before_count = len(df)
+          df = df.drop_duplicates(subset=['Date'], keep='first')
+          after_count = len(df)
+          if before_count > after_count:
+              self.logger.warning(f"发现并删除了 {before_count - after_count} 条重复日期数据")
+              self.logger.info(f"去重后数据量: {after_count} 条记录")
+      ```
+    - 数据量变化：EUR 从338行减少到283行（删除55条重复数据）
+    - 处理流程：先排序 → 再去重 → 确保保留正确的那一行
+    - 验证结果：
+      - 重新运行 pipeline 成功（24秒）
+      - 布林带显示正确数值（不再全是0）
+      - ADX 显示正常数值
+      - 其他技术指标正常计算
+    - Git 提交：e95f7b3 - "feat: add automatic deduplication for date rows in data loader"
+    - 推送状态：已成功推送到远程仓库
+
+  - **技术指标图表数据修复**：
+    - 问题：Dashboard 上的技术指标数值图没有数据显示
+    - 根本原因：`/api/v1/indicators/EUR` API 返回的 `indicators` 为空对象 `{}`
+    - 排查过程：
+      1. 检查前端代码：charts.js 的 `renderIndicatorValueChart` 函数正确实现
+      2. 检查 API 返回：`curl -s http://localhost:3000/api/v1/indicators/EUR` 返回 `{"pair": "EUR", "indicators": {}}`
+      3. 检查 JSON 文件：确认原始 JSON 文件包含 `technical_indicators` 字段
+      4. 检查后端代码：`server.js` 中的 `loadPair()` 方法缺少字段
+    - 问题分析：
+      - `loadPair()` 方法只返回：metadata, ml_predictions, llm_analysis, trading_strategies
+      - 缺少：`technical_indicators` 和 `risk_analysis` 字段
+      - `/api/v1/indicators/:pair` 端点使用 `loadPair()` 获取数据
+    - 解决方案：在 `loadPair()` 方法的返回对象中添加缺失字段
+    - 实现代码：
+      ```javascript
+      return {
+        // ... 其他字段
+        trading_strategies: tradingStrategies,
+        // Add technical indicators and risk analysis
+        technical_indicators: data.technical_indicators || {},
+        risk_analysis: data.risk_analysis || {}
+      };
+      ```
+    - 验证结果：
+      - API 返回完整数据：`indicators keys: ['trend', 'momentum', 'volatility', 'volume', 'price_pattern', 'market_environment']`
+      - 技术指标图表正常显示数据
+      - RSI14、MACD、ATR14 等指标正确显示
+    - 涉及文件：dashboard/server.js
+    - 服务器状态：已重启，正常运行
+
+  - **日期显示优化**：
+    - 问题：页面上的日期显示不够显眼
+    - 用户需求："页面上的日期要显眼一些"
+    - 解决方案：增强日期显示的样式
+    - 样式改进：
+      1. **Header 控制区优化**：
+         - 添加深色背景（`--bg-primary`）
+         - 添加边框和圆角
+         - 增加内边距
+         - 日期显示现在在独立的容器中
+      2. **日期文本增强**：
+         - 字体大小：0.875rem → 0.95rem
+         - 字体粗细：normal → 600（加粗）
+         - 颜色：灰色（`--text-secondary`）→ 白色（`--text-primary`）
+         - 添加浅蓝色背景（`rgba(59, 130, 246, 0.1)`）
+         - 添加边框（`rgba(59, 130, 246, 0.3)`）
+    - CSS 代码：
+      ```css
+      .header-controls {
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+        background-color: var(--bg-primary);
+        padding: 0.5rem 1rem;
+        border-radius: 0.5rem;
+        border: 1px solid var(--border-color);
+      }
+
+      .last-update, .auto-refresh, .last-refresh {
+        font-size: 0.95rem;
+        color: var(--text-primary);
+        font-weight: 600;
+        padding: 0.25rem 0.5rem;
+        background-color: rgba(59, 130, 246, 0.1);
+        border-radius: 0.25rem;
+        border: 1px solid rgba(59, 130, 246, 0.3);
+      }
+      ```
+    - 显示效果：
+      - "最后更新"、"自动刷新"、"最后刷新" 显示为浅蓝色标签
+      - 在深色背景下非常显眼
+      - 更容易快速识别和阅读
+    - 涉及文件：dashboard/public/css/styles.css
+    - 用户操作：硬刷新浏览器（Ctrl+Shift+R）查看效果
+
+  - **自动刷新功能验证**：
+    - 用户问题："Auto-refresh: 5min 有生效吗"
+    - 验证结果：自动刷新功能已正常工作
+    - 实现细节：
+      - 定义了 5 分钟间隔：`const AUTO_REFRESH_INTERVAL = 5 * 60 * 1000`
+      - `startAutoRefresh()` 函数设置定时器
+      - 每隔 5 分钟自动调用 `refreshData()`
+      - 显示 "Auto-refresh: 5min" 标识
+    - 启动时机：应用初始化时自动启动
+    - 重置机制：切换货币对时重置计时器
+
+  - **数据排序确认**：
+    - 用户问题："如果数据文件排序不一定对，目前系统读完数据有按日期排序吗"
+    - 回答：是的，系统已经自动按日期排序
+    - 实现位置：`excel_loader.py` 的 `_preprocess()` 方法（第97-98行）
+    - 实现代码：
+      ```python
+      # 按日期升序排序（旧数据在前）
+      if 'Date' in df.columns:
+          df = df.sort_values('Date', ascending=True).reset_index(drop=True)
+      ```
+    - 处理流程：
+      1. 按日期升序排序（旧数据在前）
+      2. 自动去重（删除重复的日期行，保留第一行）
+      3. 生成缺失的 OHLC 列
+      4. 前向填充缺失值
+    - 重要顺序：先排序 → 再去重，确保 `drop_duplicates(subset=['Date'], keep='first')` 保留正确的那一行
+    - 结论：数据文件不需要预先排序，系统会自动处理
+
+  - **经验教训**：
+    1. **数据质量的重要性**：重复数据会导致技术指标计算错误，必须在数据加载时清理
+    2. **自动去重的必要性**：用户不应该手动编辑数据文件，系统应该自动处理数据质量问题
+    3. **数据顺序的处理**：先排序再去重，确保保留正确的数据行
+    4. **API 数据结构的完整性**：不同的端点需要不同的数据结构，要根据使用场景设计
+    5. **UI 可读性的重要性**：关键信息（如日期）应该显眼显示，提高用户体验
+    6. **CSS 样式的层次感**：使用背景色、边框、字体粗细等创建视觉层次
+    7. **用户反馈的价值**：用户的问题往往揭示了需要改进的地方
+    8. **验证的重要性**：每个修复都需要验证，确保问题真正解决
+
+  - **下一步工作**：
+    - 等待用户测试反馈
+    - 根据用户需求进一步优化
+    - 考虑添加更多数据质量检查
+    - 持续优化用户体验
+
 - 日期：2026-03-27（第十二次更新 - 策略指标详情功能实现）
 - 更新者：iFlow CLI
 - 更新内容：

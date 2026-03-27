@@ -52,7 +52,11 @@ body {
 .header-controls {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 1.5rem;
+  background-color: var(--bg-primary);
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border-color);
 }
 
 .refresh-btn {
@@ -85,8 +89,13 @@ body {
 }
 
 .last-update, .auto-refresh, .last-refresh {
-  font-size: 0.875rem;
-  color: var(--text-secondary);
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  font-weight: 600;
+  padding: 0.25rem 0.5rem;
+  background-color: rgba(59, 130, 246, 0.1);
+  border-radius: 0.25rem;
+  border: 1px solid rgba(59, 130, 246, 0.3);
 }
 
 /* Main Content */

@@ -199,7 +199,10 @@ class DataLoader {
           key_factors: llmAnalysis.key_factors || [],
           horizon_analysis: llmAnalysis.horizon_analysis || {}
         },
-        trading_strategies: tradingStrategies
+        trading_strategies: tradingStrategies,
+        // Add technical indicators and risk analysis
+        technical_indicators: data.technical_indicators || {},
+        risk_analysis: data.risk_analysis || {}
       };
     } catch (error) {
       console.error(`Error loading data for ${pair}:`, error);
