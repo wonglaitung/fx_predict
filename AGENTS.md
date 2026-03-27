@@ -10,9 +10,10 @@
 - **CatBoost 预测模型**：多周期 CatBoost 模型，每个货币对每个周期独立建模
 - **大模型集成**：通义千问 API，提供技术面深度分析、ML 预测验证、风险分析和交易建议
 - **交易方案生成器**：自动计算入场价、止损止盈（基于 ATR）、风险回报比
-- **Web Dashboard**：Node.js + Express 实时可视化仪表盘，支持大模型分析展示
+- **Yahoo Finance 数据集成**：自动获取 6 年历史外汇数据（1622 条记录/货币对），支持定时更新
+- **Web Dashboard**：Node.js + Express 实时可视化仪表盘，支持大模型分析展示、策略指标详情
 - **文件上传功能**：支持通过 Dashboard 上传 Excel 数据文件
-- **Docker 部署**：提供完整的 Docker 部署方案，支持容器化运行
+- **Docker 部署**：提供完整的 Docker 部署方案，支持容器化运行和定时任务
 - **一体化脚本**：`run_full_pipeline.sh` 脚本实现训练、预测、分析全流程自动化
 
 ## 快速开始
@@ -22,6 +23,11 @@
 **Python 依赖：**
 ```bash
 pip install -r requirements.txt
+```
+
+**额外依赖（用于 Yahoo Finance 数据获取）：**
+```bash
+pip install yfinance openpyxl
 ```
 
 **Dashboard 依赖（可选）：**
@@ -41,7 +47,36 @@ cp .env.example .env
 
 ### 配置数据文件
 
-系统支持三种方式配置数据文件路径，优先级从高到低：
+系统支持多种方式获取和配置数据文件：
+
+#### 方式一：使用 Yahoo Finance 自动获取（推荐）
+
+**获取最新数据：**
+```bash
+# 获取所有货币对数据（6年历史）
+python3 fetch_fx_data.py --start-date 2020-01-01 --end-date 2026-03-27 --merge
+
+# 获取指定货币对
+python3 fetch_fx_data.py --pairs EUR JPY --merge
+
+# 只获取最近一年数据
+python3 fetch_fx_data.py --start-date 2025-03-27 --end-date 2026-03-27 --merge
+```
+
+**参数说明：**
+- `--start-date`：开始日期（默认：2020-01-01）
+- `--end-date`：结束日期（默认：今天）
+- `--pairs`：货币对列表，用空格分隔（默认：所有）
+- `--merge`：合并所有货币对到一个文件
+- `--output-file`：输出文件名（默认：data/raw/FXRate_YYYYMMDD_yahoo.xlsx）
+
+**特点：**
+- 使用 Yahoo Finance API，免费且稳定
+- 自动获取 6 年历史数据（1622 条记录/货币对）
+- 只包含交易日数据（周一至周五，不含周末和节假日）
+- 数据格式：Date, Close 列（与现有系统完全兼容）
+
+#### 方式二：手动提供 Excel 文件
 
 **数据文件位置**：默认存放在 `data/raw/` 目录下
 
@@ -77,11 +112,26 @@ DATA_CONFIG = {
 }
 ```
 
-**使用建议：**
-- 更新数据时，推荐使用命令行参数 `--data-file`，无需修改代码
-- 如果经常使用同一个数据文件，可以在 `.env` 文件中配置
-- 修改 `config.py` 中的默认值仅用于永久性更改
-- 数据文件也可以通过 Dashboard 的 `/api/v1/upload` 接口上传，会自动保存到 `data/raw/` 目录
+#### 方式三：通过 Dashboard 上传
+
+```bash
+# 启动 Dashboard
+cd dashboard && npm start
+
+# 使用 API 上传文件
+curl -X POST http://localhost:3000/api/v1/upload \
+  -F "file=@FXRate_20260327.xlsx"
+```
+
+文件会自动保存到 `data/raw/` 目录，服务器缓存会被清除。
+
+**优先级**：命令行参数 > 环境变量 > 配置文件默认值
+
+**数据文件格式**：
+- Excel 文件（.xlsx）
+- 工作表名称为货币对代码（如 EUR、JPY）
+- 包含 `Date` 和 `Close` 列
+- 日期格式：MM/DD/YYYY
 
 ## Docker 部署（可选）
 
@@ -164,6 +214,7 @@ docker-compose logs -f
 
 ### 一键运行完整流程（推荐）
 
+**方式一：使用现有数据文件**
 ```bash
 # 运行完整流程（训练 + 预测 + 分析）
 ./run_full_pipeline.sh
@@ -173,6 +224,15 @@ docker-compose logs -f
 
 # 禁用大模型分析
 ./run_full_pipeline.sh --no-llm
+```
+
+**方式二：先获取最新数据，再运行流程**
+```bash
+# 1. 获取最新的 Yahoo Finance 数据
+python3 fetch_fx_data.py --start-date 2020-01-01 --end-date 2026-03-27 --merge
+
+# 2. 运行完整流程（使用新数据）
+./run_full_pipeline.sh --data-file data/raw/FXRate_20260328_yahoo.xlsx
 ```
 
 ### 启动 Dashboard（可选）
@@ -244,9 +304,10 @@ npm test
 ```
 fx_predict/
 ├── run_full_pipeline.sh          # 一体化脚本（推荐）
+├── fetch_fx_data.py               # Yahoo Finance 数据获取脚本
 ├── data/                           # 数据目录
 │   ├── raw/                       # 原始数据文件（Excel）
-│   │   └── FXRate_20260320.xlsx   # 示例数据文件
+│   │   └── FXRate_20260328_yahoo.xlsx  # Yahoo Finance 数据（6年历史）
 │   ├── models/                    # 训练好的模型（CatBoost，18个模型）
 │   │   ├── EUR_catboost_1d.pkl
 │   │   ├── EUR_catboost_5d.pkl
@@ -273,7 +334,7 @@ fx_predict/
 │   │   └── DOCKER.md              # Docker 部署文档
 │   └── tests/                     # Dashboard 测试
 ├── data_services/                 # 数据服务层
-│   ├── excel_loader.py           # Excel 数据加载器
+│   ├── excel_loader.py           # Excel 数据加载器（含自动去重）
 │   └── technical_analysis.py     # 技术指标引擎（35个指标）
 ├── ml_services/                   # 机器学习服务层
 │   ├── fx_trading_model.py       # CatBoost 模型（多周期）
@@ -542,12 +603,13 @@ npm start
 1. **货币对概览卡片**：
    - 显示当前价格、预测方向、概率、置信度
    - 显示简短分析摘要（最多50字）
-   - 点击卡片查看完整分析详情
+   - 点击卡片查看完整分析详情（侧边栏）
 
 2. **交易策略表格**：
    - 显示所有货币对的各周期策略
    - 包含入场价、止损、止盈、建议、置信度
    - 止损止盈基于ATR计算，风险回报比1:1
+   - 点击表格行查看详细技术指标（侧边栏）
 
 3. **技术指标图表**：
    - 价格走势图 + 均线（SMA5/SMA10/SMA20）
@@ -561,6 +623,27 @@ npm start
    - 显示基本信息、分析摘要、关键因素
    - 显示各周期详细分析（短线/中线/长线）
    - 包含置信度、建议、关键点
+
+6. **策略指标详情侧边栏**：
+   - 点击交易策略表格行打开
+   - 支持标签页切换（大模型分析 / 技术指标）
+   - 显示 6 个关键技术指标类别：
+     - 支撑与阻力（布林带）
+     - 趋势强度（ADX）
+     - 动量（RSI、MACD）
+     - 波动性（ATR）
+     - 关键均线（SMA）
+     - 交易信号（Williams%R）
+   - 状态颜色标识（超买/超卖/中性/强势/弱势）
+
+7. **自动刷新**：
+   - 每 5 分钟自动刷新数据
+   - 显示"Auto-refresh: 5min"状态
+   - 显示最后刷新时间
+
+8. **日期显示**：
+   - 最后更新、自动刷新、最后刷新时间标签
+   - 浅蓝色背景，显眼展示
 
 ### Dashboard API
 
@@ -1007,7 +1090,46 @@ npm start
 示例：
 - JPY 20天 sell：入场 158.36，止损 167.86（+9.50），止盈 148.86（-9.50），距离完全相等
 
-### 10. 如何使用 Docker 部署
+### 12. 如何获取最新外汇数据
+
+**问题**：如何自动获取最新的外汇数据？
+
+**解决方案**：
+
+使用 Yahoo Finance API 自动获取数据：
+
+```bash
+# 获取所有货币对数据（6年历史）
+python3 fetch_fx_data.py --start-date 2020-01-01 --end-date 2026-03-27 --merge
+
+# 获取指定货币对
+python3 fetch_fx_data.py --pairs EUR JPY --merge
+
+# 只获取最近一年数据
+python3 fetch_fx_data.py --start-date 2025-03-27 --end-date 2026-03-27 --merge
+
+# 保存单独文件（不合并）
+python3 fetch_fx_data.py --pairs EUR
+```
+
+**数据特点**：
+- 数据源：Yahoo Finance（免费且稳定）
+- 数据量：1622 条记录/货币对（6年历史）
+- 只包含交易日数据（周一至周五）
+- 不包含周末和节假日数据
+
+**自动更新建议**：
+可以设置 cron 定时任务自动更新数据：
+
+```bash
+# 每天凌晨 2 点更新数据
+0 2 * * * cd /data/fx_predict && python3 fetch_fx_data.py --merge >> /var/log/fx_update.log 2>&1
+
+# 或每周更新一次
+0 2 * * 1 cd /data/fx_predict && python3 fetch_fx_data.py --merge >> /var/log/fx_update.log 2>&1
+```
+
+### 13. 如何使用 Docker 部署
 
 **问题**：如何使用 Docker 部署项目？
 

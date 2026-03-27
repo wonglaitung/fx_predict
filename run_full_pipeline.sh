@@ -24,6 +24,10 @@ USE_LLM=true
 SKIP_TRAINING=false
 SKIP_PREDICTION=false
 SKIP_ANALYSIS=false
+FETCH_YAHOO=false
+START_DATE="2020-01-01"
+END_DATE="$(date +%Y-%m-%d)"
+YAHOO_PAIRS="EUR JPY AUD GBP CAD NZD"
 
 # 颜色输出
 RED='\033[0;31m'
@@ -64,6 +68,10 @@ print_usage() {
 
 选项:
   --data-file FILE       数据文件路径 (优先级最高，覆盖环境变量和默认值)
+  --fetch-yahoo          从 Yahoo Finance 获取最新数据
+  --start-date DATE     获取数据开始日期 (格式: YYYY-MM-DD)
+  --end-date DATE       获取数据结束日期 (格式: YYYY-MM-DD)
+  --yahoo-pairs PAIRS    指定获取的货币对 (用空格分隔)
   --no-llm               禁用大模型分析 (默认启用)
   --skip-training        跳过训练步骤
   --skip-prediction      跳过预测步骤
@@ -74,6 +82,12 @@ print_usage() {
   1. 命令行参数 --data-file (最高优先级)
   2. 环境变量 DATA_FILE (在 .env 文件中配置)
   3. config.py 中的默认值 (最低优先级)
+
+Yahoo Finance 数据获取:
+  使用 --fetch-yahoo 参数自动从 Yahoo Finance 获取最新数据
+  可以配合 --start-date 和 --end-date 指定日期范围
+  可以配合 --yahoo-pairs 指定要获取的货币对
+  数据会自动保存到 data/raw/ 目录
 
 默认行为:
   - 训练/预测所有周期（1天、5天、20天）
@@ -89,13 +103,61 @@ print_usage() {
   # 跳过大模型分析
   $0 --no-llm
 
+  # 从 Yahoo Finance 获取最新数据并运行完整流程
+  $0 --fetch-yahoo
+
+  # 获取指定日期范围的数据
+  $0 --fetch-yahoo --start-date 2025-01-01 --end-date 2026-03-27
+
+  # 只获取特定货币对的数据
+  $0 --fetch-yahoo --yahoo-pairs EUR JPY
+
   # 指定数据文件（命令行参数，最高优先级）
-  $0 --data-file FXRate_20260326.xlsx
+  $0 --data-file FXRate_20260326.yml
 
   # 在 .env 文件中配置数据文件路径
   # 添加: DATA_FILE=FXRate_20260326.xlsx
 EOF
     exit 0
+}
+
+# 从 Yahoo Finance 获取数据
+fetch_yahoo_data() {
+    print_header "从 Yahoo Finance 获取数据"
+
+    local start_time=$(date +%s)
+    local output_file="data/raw/FXRate_$(date +%Y%m%d)_yahoo.xlsx"
+
+    print_info "开始日期: $START_DATE"
+    print_info "结束日期: $END_DATE"
+    print_info "货币对: $YAHOO_PAIRS"
+    print_info "输出文件: $output_file"
+    echo ""
+
+    # 构建命令参数
+    local cmd="python3 fetch_fx_data.py --start-date $START_DATE --end-date $END_DATE --merge --output-file $output_file"
+
+    # 添加货币对参数
+    if [ -n "$YAHOO_PAIRS" ]; then
+        cmd="$cmd --pairs $YAHOO_PAIRS"
+    fi
+
+    # 执行命令
+    if eval $cmd; then
+        print_success "数据获取完成: $output_file"
+        
+        # 更新 DATA_FILE 变量
+        DATA_FILE="$output_file"
+    else
+        print_error "数据获取失败"
+        exit 1
+    fi
+
+    local end_time=$(date +%s)
+    local duration=$((end_time - start_time))
+
+    print_info "数据获取耗时: ${duration} 秒"
+    echo ""
 }
 
 # 训练所有货币对的模型
@@ -203,6 +265,11 @@ run_full_pipeline() {
     print_info "大模型: $([ "$USE_LLM" = true ] && echo "启用" || echo "禁用")"
     echo ""
 
+    # 0. 从 Yahoo Finance 获取数据（如果启用）
+    if [ "$FETCH_YAHOO" = true ]; then
+        fetch_yahoo_data
+    fi
+
     # 1. 训练
     if [ "$SKIP_TRAINING" = false ]; then
         train_all_pairs
@@ -241,6 +308,26 @@ parse_args() {
             --data-file)
                 DATA_FILE="$2"
                 shift 2
+                ;;
+            --fetch-yahoo)
+                FETCH_YAHOO=true
+                shift
+                ;;
+            --start-date)
+                START_DATE="$2"
+                shift 2
+                ;;
+            --end-date)
+                END_DATE="$2"
+                shift 2
+                ;;
+            --yahoo-pairs)
+                shift
+                YAHOO_PAIRS=""
+                while [[ $# -gt 0 && ! "$1" =~ ^- ]]; do
+                    YAHOO_PAIRS="$YAHOO_PAIRS $1"
+                    shift
+                done
                 ;;
             --no-llm)
                 USE_LLM=false
