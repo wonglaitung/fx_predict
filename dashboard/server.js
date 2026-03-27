@@ -206,6 +206,30 @@ class DataLoader {
       throw error;
     }
   }
+
+  loadPairRaw(pair) {
+    const validPairs = ['EUR', 'JPY', 'AUD', 'GBP', 'CAD', 'NZD'];
+    if (!validPairs.includes(pair)) {
+      throw new Error('Invalid pair code');
+    }
+
+    try {
+      const files = fs.readdirSync(this.dataDir)
+        .filter(f => f.startsWith(`${pair}_multi_horizon_`) && f.endsWith('.json'));
+
+      if (files.length === 0) {
+        throw new Error('No data found for pair');
+      }
+
+      // Get the latest file
+      const latestFile = files.sort().pop();
+      const filePath = path.join(this.dataDir, latestFile);
+      return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    } catch (error) {
+      console.error(`Error loading raw data for ${pair}:`, error);
+      throw error;
+    }
+  }
 }
 
 const dataCache = new DataCache(parseInt(process.env.CACHE_TTL) || 300000);
@@ -633,13 +657,13 @@ app.get('/api/v1/strategies/:pair/:horizon/indicators', (req, res) => {
       return res.json(cached);
     }
     
-    // Load data
-    const data = dataLoader.loadPair(pair);
+    // Load data - load raw data to access metadata and technical_indicators
+    const rawData = dataLoader.loadPairRaw(pair);
     
     // Get technical indicators and trading strategies
-    const indicators = data.technical_indicators || {};
-    const metadata = data.metadata || {};
-    const strategies = data.trading_strategies || {};
+    const indicators = rawData.technical_indicators || {};
+    const metadata = rawData.metadata || {};
+    const strategies = rawData.trading_strategies || {};
     
     // Get strategy for the horizon
     const strategyMap = {
