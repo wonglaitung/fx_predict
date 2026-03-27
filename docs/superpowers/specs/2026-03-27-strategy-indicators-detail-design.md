@@ -136,14 +136,35 @@
 
 ## 前端UI设计
 
+### 触发器区分机制
+
+侧边栏可以从两个来源触发：
+
+1. **概览卡片点击**：显示大模型分析（现有功能）
+2. **策略表格行点击**：显示技术指标详情（新增功能）
+
+**实现方式：**
+- 使用全局状态变量 `sidebarTrigger` 记录触发来源
+- 值：`'card'`（卡片）或 `'strategy'`（策略行）
+- 根据触发源自动选择默认标签页
+
+### 侧边栏状态管理
+
+```javascript
+// 全局状态
+let currentSidebarTrigger = null; // 'card' | 'strategy'
+let currentSidebarData = null;    // 当前侧边栏数据
+let currentActiveTab = null;      // 'llm' | 'indicators'
+```
+
 ### 侧边栏结构更新
 
 ```html
 <!-- 侧边栏头部（添加标签页） -->
 <div class="sidebar-header">
-  <h2 class="sidebar-title">分析详情</h2>
-  <div class="sidebar-tabs">
-    <button class="tab-btn active" data-tab="llm">大模型分析</button>
+  <h2 class="sidebar-title" id="sidebarTitle">大模型分析详情</h2>
+  <div class="sidebar-tabs" id="sidebarTabs">
+    <button class="tab-btn" data-tab="llm">大模型分析</button>
     <button class="tab-btn" data-tab="indicators">技术指标</button>
   </div>
   <button id="closeSidebar" class="close-btn">&times;</button>
@@ -151,7 +172,7 @@
 
 <!-- 侧边栏内容（添加两个标签页） -->
 <div id="sidebarContent" class="sidebar-content">
-  <div id="llmTab" class="tab-content active">
+  <div id="llmTab" class="tab-content">
     <!-- 大模型分析内容（现有） -->
   </div>
   <div id="indicatorsTab" class="tab-content">
@@ -159,6 +180,11 @@
   </div>
 </div>
 ```
+
+**标签页行为：**
+- 卡片点击触发：默认显示"大模型分析"标签页
+- 策略行点击触发：默认显示"技术指标"标签页
+- 用户可以手动切换标签页
 
 ### 技术指标详情页面布局
 
@@ -184,7 +210,54 @@
 └─────────────────────────────────────┘
 ```
 
-### 关键指标提取逻辑
+### 关键指标选择标准
+
+从35个技术指标中选择6个关键类别，基于以下标准：
+
+1. **与策略决策直接相关**：指标直接影响入场、止损、止盈的确定
+2. **行业标准**：交易员最常用和关注的技术指标
+3. **覆盖不同维度**：趋势、动量、波动、支撑阻力等
+4. **计算简单可靠**：避免复杂计算和噪声
+5. **适合多周期**：适用于1天、5天、20天不同周期
+
+#### 为什么选择这6个类别？
+
+1. **支撑/阻力**：确定入场价、止损、止盈的关键
+   - 布林带：动态支撑阻力，考虑波动性
+   - 价格位置：判断当前价格相对于关键位置
+
+2. **趋势强度**：确定策略方向（做多/做空/观望）
+   - ADX：判断趋势强弱，避免震荡市误操作
+   - 均线排列：确认趋势方向和稳定性
+
+3. **动量信号**：判断超买超卖，寻找反转点
+   - RSI14：最常用的动量指标，判断超买超卖
+   - MACD：确认动量变化，判断趋势转折
+
+4. **波动性**：确定止损止盈距离和仓位大小
+   - ATR14：计算止损止盈的基础
+   - 波动率：判断市场活跃度和风险
+
+5. **关键均线**：判断价格位置和趋势方向
+   - SMA5/10/20：短期趋势和支撑阻力
+   - SMA120：长期趋势，关键支撑阻力位
+
+6. **信号**：确认其他指标的信号
+   - Williams%R：辅助RSI判断超买超卖
+   - CCI20：判断极端市场条件
+
+#### 指标在不同策略中的应用
+
+| 指标类别 | 买入策略 | 卖出策略 | 持有策略 |
+|---------|---------|---------|---------|
+| 支撑/阻力 | 关注下轨支撑 | 关注上轨阻力 | 关注中轨波动 |
+| 趋势强度 | ADX>25确认 | ADX>25确认 | ADX<20观望 |
+| 动量信号 | RSI<30超卖 | RSI>70超买 | RSI中性区 |
+| 波动性 | ATR设置止损 | ATR设置止损 | ATR判断风险 |
+| 关键均线 | 价格>SMA5/10 | 价格<SMA5/10 | 价格在均线间 |
+| 信号 | Williams%R< -80 | Williams%R> -20 | Williams%R中性 |
+
+### 解释生成逻辑
 
 #### 支撑/阻力
 
@@ -227,6 +300,142 @@
 - CCI20
 - 解释说明
 
+### 解释生成逻辑
+
+解释文本基于**规则引擎**生成，考虑指标数值、阈值和策略方向。
+
+#### 支撑/阻力解释规则
+
+```javascript
+function generateSupportResistanceInterpretation(bbUpper, bbMiddle, bbLower, pricePosition, price) {
+  if (pricePosition === '上轨之上') {
+    return `价格突破上轨（${bbUpper}），可能回调。建议关注${bbMiddle}支撑位。`;
+  } else if (pricePosition === '下轨之下') {
+    return `价格跌破下轨（${bbLower}），可能反弹。建议关注${bbMiddle}阻力位。`;
+  } else {
+    const distanceToUpper = ((bbUpper - price) / price * 100).toFixed(2);
+    const distanceToLower = ((price - bbLower) / price * 100).toFixed(2);
+    return `价格在中轨（${bbMiddle}）附近，距离上轨${distanceToUpper}%，距离下轨${distanceToLower}%。布林带宽度正常。`;
+  }
+}
+```
+
+#### 趋势强度解释规则
+
+```javascript
+function generateTrendStrengthInterpretation(adx, trend) {
+  if (trend === '强势') {
+    return `ADX为${adx}显示趋势强劲，适合趋势交易。当前趋势明确，可顺势而为。`;
+  } else if (trend === '弱势') {
+    return `ADX为${adx}显示趋势较弱，适合区间交易。当前震荡行情，建议高抛低吸。`;
+  } else {
+    return `ADX为${adx}显示无明显趋势，建议观望。当前市场方向不明，等待更明确信号。`;
+  }
+}
+```
+
+#### 动量信号解释规则
+
+```javascript
+function generateMomentumInterpretation(rsi14, rsiStatus, macd, macdSignal) {
+  let interpretation = '';
+  
+  if (rsiStatus === '超买') {
+    interpretation = 'RSI超买，价格可能回调。注意风险，谨慎追高。';
+  } else if (rsiStatus === '超卖') {
+    interpretation = 'RSI超卖，价格可能反弹。可考虑逢低建仓。';
+  } else {
+    interpretation = 'RSI中性，等待更明确信号。当前处于观望区域。';
+  }
+  
+  // 结合MACD
+  if (macd > macdSignal && rsi14 < 70) {
+    interpretation += ' MACD金叉，多头信号。';
+  } else if (macd < macdSignal && rsi14 > 30) {
+    interpretation += ' MACD死叉，空头信号。';
+  }
+  
+  return interpretation;
+}
+```
+
+#### 波动性解释规则
+
+```javascript
+function generateVolatilityInterpretation(atr14, volatility20d, price) {
+  const atrPercent = (atr14 / price * 100).toFixed(2);
+  
+  if (volatility20d > 0.025) {
+    return `波动率较高（${volatility20d}），ATR为${atrPercent}%。市场活跃，注意风险控制，建议减小仓位。`;
+  } else if (volatility20d < 0.015) {
+    return `波动率较低（${volatility20d}），ATR为${atrPercent}%。市场平静，可考虑适当加仓。`;
+  } else {
+    return `波动率正常（${volatility20d}），ATR为${atrPercent}%。市场状态稳定，按计划执行。`;
+  }
+}
+```
+
+#### 关键均线解释规则
+
+```javascript
+function generateKeyMAInterpretation(sma5, sma10, sma20, sma120, price) {
+  const maAlignment = sma5 > sma10 && sma10 > sma20;
+  const priceVsMA = price > sma120;
+  
+  let interpretation = '';
+  
+  // 短期均线排列
+  if (maAlignment) {
+    interpretation += '短期均线多头排列，看涨信号。';
+  } else {
+    interpretation += '短期均线空头排列，看跌信号。';
+  }
+  
+  // 长期均线位置
+  if (priceVsMA) {
+    interpretation += ` SMA120（${sma120}）在下形成支撑，长期看涨。`;
+  } else {
+    interpretation += ` SMA120（${sma120}）在上形成阻力，长期看跌。`;
+  }
+  
+  return interpretation;
+}
+```
+
+#### 信号解释规则
+
+```javascript
+function generateSignalsInterpretation(williamsR, status, cci20) {
+  if (status === '超买') {
+    return `Williams%R超买信号（${williamsR}），价格可能回调。`;
+  } else if (status === '超卖') {
+    return `Williams%R超卖信号（${williamsR}），价格可能反弹。`;
+  } else {
+    return `Williams%R中性（${williamsR}），无明确信号。`;
+  }
+  
+  // 结合CCI
+  if (cci20 > 100) {
+    return ` CCI20超买（${cci20}），确认超买信号。`;
+  } else if (cci20 < -100) {
+    return ` CCI20超卖（${cci20}），确认超卖信号。`;
+  }
+}
+```
+
+#### 整体摘要生成规则
+
+```javascript
+function generateOverallSummary(pairName, horizonName, direction, indicators) {
+  const directionText = direction === 'buy' ? '偏多' : direction === 'sell' ? '偏空' : '中性';
+  const trendStrength = indicators.trend_strength.trend;
+  const rsiStatus = indicators.momentum.rsi_status;
+  const pricePosition = indicators.support_resistance.price_position;
+  
+  return `${pairName}${horizonName}当前技术面${directionText}，价格${pricePosition}，ADX显示${trendStrength}。RSI14为${indicators.momentum.rsi14}处于${rsiStatus}区域，${rsiStatus === '中性' ? '建议等待更明确的信号' : '注意可能的反转信号'}。波动率${indicators.volatility.interpretation.substring(0, 10)}...，${indicators.key_ma.interpretation.substring(0, 20)}...`;
+}
+```
+
 ### CSS样式要点
 
 - 标签页：`.sidebar-tabs`, `.tab-btn`, `.tab-content`
@@ -240,12 +449,174 @@
 
 ### JavaScript功能
 
+#### 核心功能函数
+
 - `setupStrategyTableRowClick()`: 设置表格行点击事件
 - `openStrategyIndicators(pair, horizon)`: 打开策略技术指标详情
 - `switchTab(tabName)`: 切换标签页
 - `renderStrategyIndicators(data)`: 渲染技术指标内容
 - `renderIndicatorCard(title, indicators)`: 渲染单个指标卡片
 - `formatIndicatorLabel(key)`: 格式化指标标签（英文→中文）
+
+#### 辅助函数
+
+- `openSidebar(trigger, data)`: 打开侧边栏（统一的打开函数）
+- `updateSidebarState(trigger, data, defaultTab)`: 更新侧边栏状态
+- `handleTabSwitch(tabName)`: 处理标签页切换逻辑
+
+#### 表格行点击实现细节
+
+```javascript
+function setupStrategyTableRowClick() {
+  const tableRows = document.querySelectorAll('#strategiesTable tbody tr');
+  tableRows.forEach(row => {
+    // 设置鼠标样式
+    row.style.cursor = 'pointer';
+    row.addEventListener('mouseenter', () => {
+      row.style.backgroundColor = 'rgba(59, 130, 246, 0.1)';
+    });
+    row.addEventListener('mouseleave', () => {
+      row.style.backgroundColor = '';
+    });
+
+    // 设置点击事件
+    row.addEventListener('click', async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      // 从行属性中提取数据
+      const pair = row.getAttribute('data-pair');
+      const horizon = row.getAttribute('data-horizon');
+
+      if (!pair || !horizon) {
+        console.error('Missing pair or horizon in table row');
+        return;
+      }
+
+      // 显示加载状态
+      showLoadingState();
+
+      try {
+        // 加载技术指标数据
+        const response = await fetch(`/api/v1/strategies/${pair}/${horizon}/indicators`);
+        if (!response.ok) {
+          throw new Error(`Failed to load indicators: ${response.status}`);
+        }
+        const data = await response.json();
+
+        // 打开侧边栏（触发源为 strategy）
+        openSidebar('strategy', data);
+
+      } catch (error) {
+        console.error('Error loading strategy indicators:', error);
+        hideLoadingState();
+        alert('加载技术指标失败，请稍后重试');
+      }
+    });
+  });
+}
+```
+
+#### 侧边栏打开逻辑
+
+```javascript
+function openSidebar(trigger, data) {
+  // 更新全局状态
+  currentSidebarTrigger = trigger;
+  currentSidebarData = data;
+
+  // 确定默认标签页
+  const defaultTab = trigger === 'strategy' ? 'indicators' : 'llm';
+  currentActiveTab = defaultTab;
+
+  // 根据触发源更新标题
+  const titleElement = document.getElementById('sidebarTitle');
+  if (trigger === 'strategy') {
+    titleElement.textContent = `${data.pair_name} - ${data.horizon_name}`;
+  } else {
+    titleElement.textContent = '大模型分析详情';
+  }
+
+  // 根据触发源渲染内容
+  if (trigger === 'strategy') {
+    renderStrategyIndicators(data);
+  } else {
+    renderSidebarContent(data);
+  }
+
+  // 切换到默认标签页
+  switchTab(defaultTab);
+
+  // 显示侧边栏
+  document.getElementById('analysisSidebar').classList.add('sidebar-open');
+  document.getElementById('sidebarOverlay').classList.add('sidebar-overlay-open');
+
+  // 隐藏加载状态
+  hideLoadingState();
+}
+```
+
+#### 标签页切换逻辑
+
+```javascript
+function switchTab(tabName) {
+  // 更新当前活动标签
+  currentActiveTab = tabName;
+
+  // 更新标签按钮状态
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.classList.remove('active');
+    if (btn.getAttribute('data-tab') === tabName) {
+      btn.classList.add('active');
+    }
+  });
+
+  // 更新标签内容显示
+  document.querySelectorAll('.tab-content').forEach(content => {
+    content.classList.remove('active');
+  });
+  document.getElementById(`${tabName}Tab`).classList.add('active');
+
+  // 根据标签页显示/隐藏侧边栏标签
+  const tabsElement = document.getElementById('sidebarTabs');
+  if (currentSidebarTrigger === 'strategy') {
+    tabsElement.style.display = 'flex';
+  } else {
+    tabsElement.style.display = 'none';
+  }
+}
+```
+
+#### 加载状态管理
+
+```javascript
+function showLoadingState() {
+  const sidebar = document.getElementById('analysisSidebar');
+  const content = document.getElementById('sidebarContent');
+  
+  // 添加加载指示器
+  const loader = document.createElement('div');
+  loader.id = 'sidebarLoader';
+  loader.innerHTML = '<div class="loader"></div><p>加载中...</p>';
+  loader.style.cssText = `
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    color: var(--text-secondary);
+  `;
+  
+  sidebar.appendChild(loader);
+}
+
+function hideLoadingState() {
+  const loader = document.getElementById('sidebarLoader');
+  if (loader) {
+    loader.remove();
+  }
+}
+```
 
 ## 后端实现
 
@@ -437,7 +808,11 @@
 - 新函数：`getHorizonName(horizon)`
 
 **修改内容：**
-- 文件上传端点：添加缓存清除逻辑（所有缓存）
+- 文件上传端点：添加缓存清除逻辑
+  - 现有：`dataCache.clearByPattern('pair:')`
+  - 现有：`dataCache.clearByPattern('strategies:')`
+  - 新增：`dataCache.clearByPattern('strategy_indicators:')`
+  - 或者使用：`dataCache.clear()`（清除所有缓存）
 - API端点文档打印：添加新端点信息
 
 ### 前端文件
