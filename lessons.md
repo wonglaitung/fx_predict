@@ -334,1084 +334,142 @@ handler = RotatingFileHandler('fx_predict.log', maxBytes=10*1024*1024, backupCou
 
 ## 最后更新
 
-- 日期：2026-03-27（第七次更新 - Docker 部署和目录重构）
+- 日期：2026-03-27（第九次更新 - Dashboard 缓存问题和显示优化）
 - 作者：iFlow CLI
-- 版本：7.0 (Docker + 目录重构)
+- 版本：9.0 (Dashboard 缓存修复 + 显示优化)
 - 更新内容：
-  - **API 文档自动生成的价值**：
-    - 问题：用户不知道 Dashboard 支持哪些 API 端点和参数
-    - 解决方案：在服务器启动时自动打印所有 API 端点信息
-    - 实现方式：
-      1. 创建结构化的端点数组（apiEndpoints）
-      2. 每个端点包含：方法、路径、描述、参数、响应格式
-      3. 服务器启动后遍历数组并格式化打印
-    - 代码示例：
-      ```javascript
-      const apiEndpoints = [
-        {
-          method: 'GET',
-          path: '/health',
-          description: 'Health check endpoint',
-          parameters: 'None',
-          response: '{ "status": "ok", "timestamp": "..." }'
-        },
-        // ... 其他端点
-      ];
-      
-      // 启动后打印
-      server.listen(port, host, () => {
-        logInfo('===== Dashboard API Endpoints =====');
-        apiEndpoints.forEach(endpoint => {
-          console.log(`[${endpoint.method}]    ${endpoint.path}`);
-          console.log(`  Description: ${endpoint.description}`);
-          console.log(`  Parameters: ${endpoint.parameters}`);
-          console.log(`  Response: ${endpoint.response}`);
-          console.log('');
-        });
-      });
-      ```
-    - 优势：
-      1. 提高系统透明度
-      2. 减少文档维护成本（代码即文档）
-      3. 方便开发者调试和测试
-      4. 用户可以快速了解所有可用功能
-    - 最佳实践：
-      - 端点信息应该与实际实现保持同步
-      - 描述应该简洁明了
-      - 参数和响应格式应该准确
-    - 教训：API 文档应该随着代码更新，避免文档与实现不一致
-  
-  - **Docker 部署的模块化设计**：
-    - 问题：如何在没有 docker-compose 的情况下实现完整的 Docker 部署
-    - 解决方案：使用脚本封装 Docker 命令，提供类似 docker-compose 的体验
-    - 架构设计：
-      - Dockerfile：定义镜像构建规则
-      - docker-deploy.sh：封装常用 Docker 命令
-      - docker-entrypoint.sh：容器启动脚本
-      - DOCKER.md：完整的部署文档
-    - docker-deploy.sh 关键命令：
-      ```bash
-      build() {
-        docker build -t $IMAGE_NAME -f $DOCKERFILE $PROJECT_DIR
-      }
-      
-      up() {
-        docker run -d \
-          --name $CONTAINER_NAME \
-          --restart unless-stopped \
-          -p $PORT:$PORT \
-          -v $PROJECT_DIR/.env:/app/.env:ro \
-          -v $PROJECT_DIR/data/raw:/app/data/raw \
-          -v $PROJECT_DIR/data/models:/app/data/models \
-          -v $PROJECT_DIR/data/predictions:/app/data/predictions \
-          -v $PROJECT_DIR/logs:/app/logs \
-          $IMAGE_NAME
-      }
-      ```
-    - 优势：
-      1. 用户不需要了解复杂的 Docker 命令
-      2. 提供统一的接口（build, up, down, restart）
-      3. 支持配置热更新（Volume 挂载 .env）
-      4. 数据持久化（Volume 挂载数据目录）
-    - 教训：简化部署流程可以显著降低用户使用门槛
-  
-  - **Docker 多阶段构建的优势**：
-    - 问题：如何减小 Docker 镜像体积
-    - 解决方案：使用多阶段构建分离构建环境和运行环境
-    - 代码示例：
-      ```dockerfile
-      # 构建阶段
-      FROM node:18-alpine AS dashboard-builder
-      WORKDIR /app/dashboard
-      COPY dashboard/package*.json ./
-      RUN npm ci --only=production
-      COPY dashboard/ ./
-      
-      # 运行阶段
-      FROM python:3.10-slim
-      WORKDIR /app
-      # ... 安装 Python 依赖
-      COPY --from=dashboard-builder /app/dashboard /app/dashboard
-      # ... 复制其他文件
-      ```
-    - 优势：
-      1. 镜像体积更小（不包含构建工具和源代码）
-      2. 构建速度更快（利用缓存）
-      3. 安全性更高（不暴露构建细节）
-    - 教训：多阶段构建是生产环境 Docker 镜像的最佳实践
-  
-  - **定时任务在 Docker 中的实现**：
-    - 问题：如何在 Docker 容器中实现定时任务
-    - 解决方案：使用 cron 服务和 docker-entrypoint.sh 脚本
-    - 代码示例：
-      ```bash
-      # docker-entrypoint.sh
-      # 创建日志目录
-      mkdir -p /app/logs
-      
-      # 设置 cron 任务（每小时执行一次）
-      echo "0 * * * * cd /app && bash run_full_pipeline.sh >> /app/logs/pipeline.log 2>&1" > /tmp/crontab
-      crontab /tmp/crontab
-      
-      # 重定向 cron 输出到日志文件
-      cron -f 2>&1 | tee /app/logs/cron.log &
-      
-      # 启动 Dashboard 服务器
-      cd /app/dashboard && npm start
-      ```
-    - 关键点：
-      1. 使用 `cron -f` 保持前台运行（容器不会退出）
-      2. 重定向输出到日志文件便于调试
-      3. 在后台运行 cron，前台运行主服务
-    - 教训：容器中的定时任务需要确保进程在前台运行，否则容器会退出
-  
-  - **Volume 挂载的最佳实践**：
-    - 问题：如何在 Docker 容器中实现数据持久化和配置热更新
-    - 解决方案：使用 Volume 挂载宿主机目录
-    - 关键配置：
-      ```yaml
-      volumes:
-        - ./.env:/app/.env:ro              # 只读挂载，支持配置热更新
-        - ./data/raw:/app/data/raw         # 原始数据文件
-        - ./data/models:/app/data/models   # 训练好的模型
-        - ./data/predictions:/app/data/predictions  # 预测结果
-        - ./logs:/app/logs                 # 日志文件
-      ```
-    - 最佳实践：
-      1. 配置文件使用只读挂载（:ro）防止容器内修改
-      2. 数据目录使用读写挂载，支持数据持久化
-      3. 日志目录单独挂载，便于查看和清理
-    - 优势：
-      1. 修改 .env 文件后重启容器即可生效
-      2. 数据不会因为容器删除而丢失
-      3. 日志可以在宿主机直接查看
-    - 教训：合理的 Volume 挂载策略是 Docker 部署成功的关键
-  
-  - **健康检查的重要性**：
-    - 问题：如何监控容器是否正常运行
-    - 解决方案：在 Dockerfile 中配置健康检查
-    - 代码示例：
-      ```dockerfile
-      HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=40s \
-        CMD node -e "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
-      ```
-    - 参数说明：
-      - interval: 检查间隔（30秒）
-      - timeout: 超时时间（10秒）
-      - retries: 重试次数（3次）
-      - start-period: 启动宽限期（40秒）
-    - 优势：
-      1. 自动检测容器是否正常运行
-      2. 失败时自动重启（配置 restart: unless-stopped）
-      3. 便于监控和告警
-    - 教训：健康检查是生产环境容器的必备功能
-  
-  - **目录重构的最佳实践**：
-    - 问题：Docker 相关文件散落在项目根目录，影响项目整洁性
-    - 解决方案：将所有 Docker 相关文件集中到 dashboard/docker/ 目录
-    - Git 处理：
-      ```bash
-      # 使用 git mv 移动文件（保留历史记录）
-      git mv Dockerfile dashboard/docker/Dockerfile
-      git mv docker-compose.yml dashboard/docker/docker-compose.yml
-      git mv docker-deploy.sh dashboard/docker/docker-deploy.sh
-      # ...
-      
-      # Git 会自动识别为重命名操作
-      git status
-      # 输出：renamed: Dockerfile -> dashboard/docker/Dockerfile
-      ```
-    - 路径计算：
-      ```bash
-      # docker-deploy.sh 中的路径计算
-      PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-      # 从 dashboard/docker 目录返回到项目根目录
-      ```
-    - 优势：
-      1. 项目根目录更加整洁
-      2. 相关文件集中管理，便于维护
-      3. 符合模块化设计原则
-      4. Git 自动识别为重命名，保留历史记录
-    - 教训：项目初始化时就应该规划好目录结构，避免后期重构
-  
-  - **相对路径和绝对路径的选择**：
-    - 问题：如何在 Dockerfile 和脚本中正确引用文件
-    - 解决方案：根据上下文选择相对路径或绝对路径
-    - 规则：
-      1. Dockerfile COPY：使用相对于 build context 的路径
-      2. 脚本内部：使用绝对路径或相对于脚本位置的路径
-      3. Volume 挂载：使用相对于 docker-compose.yml 的路径
-    - 示例：
-      ```dockerfile
-      # Dockerfile（build context 是项目根目录）
-      COPY requirements.txt ./                  # 相对于 build context
-      COPY data_services ./data_services       # 相对于 build context
-      COPY ml_services ./ml_services           # 相对于 build context
-      ```
-      ```yaml
-      # docker-compose.yml（在 dashboard/docker/ 目录）
-      build:
-        context: ../..                          # 项目根目录
-        dockerfile: dashboard/docker/Dockerfile
-      volumes:
-        - ../../.env:/app/.env:ro              # 相对于 docker-compose.yml
-      ```
-    - 教训：Docker 中的路径引用需要根据上下文仔细设计
-  
-  - **文档自动化的价值**：
-    - 问题：如何确保文档与代码保持同步
-    - 解决方案：代码中生成文档内容，减少手动维护
-    - 实现：
-      1. API 文档：从代码中的端点数组生成
-      2. 命令文档：从脚本中的 help 函数生成
-      3. 配置文档：从配置验证函数生成
-    - 优势：
-      1. 文档与代码自动同步
-      2. 减少手动维护成本
-      3. 降低文档过时的风险
-    - 教训：代码即文档（Documentation as Code）是现代软件开发的最佳实践
-  
-  - **Docker Compose vs Shell 脚本的权衡**：
-    - 问题：应该使用 Docker Compose 还是自定义脚本
-    - 对比：
-      | 特性 | Docker Compose | Shell 脚本 |
-      |------|----------------|------------|
-      | 标准化 | ✅ 行业标准 | ❌ 自定义 |
-      | 学习曲线 | ⚠️ 需要学习 YML | ✅ 简单易懂 |
-      | 灵活性 | ⚠️ 受限于 Compose | ✅ 完全控制 |
-      | 多容器 | ✅ 天然支持 | ⚠️ 需要额外实现 |
-      | 单容器 | ✅ 简洁 | ✅ 简洁 |
-    - 选择建议：
-      - 多容器应用：使用 Docker Compose
-      - 单容器应用：两者都可以
-      - 没有 Docker Compose：使用 Shell 脚本
-      - 需要自定义逻辑：使用 Shell 脚本
-    - 教训：根据实际需求选择合适的工具，不要过度设计
-
-- 日期：2026-03-27（第六次更新 - 配置一致性和环境变量加载）
-- 作者：iFlow CLI
-- 版本：6.0 (配置修复 + 环境变量)
-- 更新内容：
-  - **配置一致性的重要性**：
-    - 问题：DATA_CONFIG 中包含 CHF 货币对，但 CURRENCY_PAIRS 和 dashboard 配置中没有
-    - 影响：
-      - 配置不一致导致用户困惑
-      - Dashboard 只显示 6 个货币对，但配置文件声称支持 7 个
-      - 可能导致运行时错误或意外行为
-    - 发现过程：
-      1. 用户提问："为什么配置文件有 7 个货币对，但仪表盘只显示 6 个？"
-      2. 检查 config.py 发现 DATA_CONFIG 包含 CHF
-      3. 检查 CURRENCY_PAIRS 只包含 6 个货币对（EUR, JPY, AUD, GBP, CAD, NZD）
-      4. 检查 dashboard/server.js 的 validPairs 也只包含 6 个
-    - 解决方案：
-      - 从 DATA_CONFIG['supported_pairs'] 中删除 CHF
-      - 从 DATA_CONFIG['pair_symbols'] 中删除 CHF
-      - 验证配置一致性：`sorted(list(CURRENCY_PAIRS.keys())) == sorted(DATA_CONFIG['supported_pairs'])`
-    - 教训：配置文件中的所有相关配置必须保持一致，定期进行一致性检查
-  
-  - **环境变量加载的最佳实践**：
-    - 问题：综合分析失败，错误信息 "QWEN_API_KEY 环境变量未设置"
+  - **后端缓存陷阱**：
+    - 问题：Dashboard 服务器缓存了旧数据，导致前端无法获取最新字段
+    - 现象：后端代码已更新添加 `predictions` 字段，但前端收到的是旧数据
     - 排查过程：
-      1. 检查 .env 文件存在且包含 QWEN_API_KEY
-      2. 检查 config.py 中有 load_dotenv() 调用
-      3. 检查 comprehensive_analysis.py 没有调用 load_dotenv()
-      4. 检查 llm_services/qwen_engine.py 也没有调用 load_dotenv()
-    - 根本原因：
-      - config.py 在模块导入时调用 load_dotenv()
-      - comprehensive_analysis.py 和 qwen_engine.py 导入 config.py 时，load_dotenv() 还未被调用
-      - 导致环境变量未被加载
-    - 解决方案：
-      - 在 comprehensive_analysis.py 开头添加 `from dotenv import load_dotenv; load_dotenv()`
-      - 在 llm_services/qwen_engine.py 开头添加 `from dotenv import load_dotenv; load_dotenv()`
-      - 确保环境变量在导入时就被加载
-    - 代码示例：
-      ```python
-      # comprehensive_analysis.py
-      import pandas as pd
-      import logging
-      from typing import Dict, Any
-      import json
-      import time
-      from dotenv import load_dotenv  # 新增
-      load_dotenv()  # 新增
-      
-      from data_services.technical_analysis import TechnicalAnalyzer
-      # ...
-      
-      # llm_services/qwen_engine.py
-      import os
-      import requests
-      import logging
-      from datetime import datetime
-      from dotenv import load_dotenv  # 新增
-      load_dotenv()  # 新增
-      
-      logger = logging.getLogger(__name__)
-      # ...
-      ```
-    - 测试验证：
+      1. 检查后端代码：确认 server.js 第109-125行添加了 `predictions` 字段
+      2. 检查前端代码：确认 components.js 正确读取 `predictions` 字段
+      3. 测试 API：使用 curl 检查返回数据，发现 `predictions` 字段缺失
+      4. 检查服务器日志：发现 "Cache hit for key: pairs"（缓存命中）
+    - 解决方案：重启 Dashboard 服务器清除缓存
+    - 验证方法：
       ```bash
-      # 测试前：QWEN_API_KEY 未设置，综合分析失败
-      python3 -m comprehensive_analysis --pair EUR
-      # 错误：QWEN_API_KEY 环境变量未设置
+      # 重启服务器
+      pkill -f "node.*server.js"
+      nohup node server.js > logs/server.log 2>&1 &
       
-      # 测试后：QWEN_API_KEY 正常设置，综合分析成功
-      python3 -m comprehensive_analysis --pair EUR
-      # 成功：生成 EUR_multi_horizon_20260327_110208.json
+      # 验证 API 返回
+      curl -s http://localhost:3000/api/v1/pairs | python3 -c "import sys, json; data=json.load(sys.stdin); [print(f\"{p['pair']}: predictions={p.get('predictions', 'MISSING')}\") for p in data['pairs']]"
       ```
-    - 教训：依赖环境变量的模块应该在导入时调用 load_dotenv()，确保环境变量被正确加载
+    - 教训：**后端数据结构更新后，必须重启服务器或清除缓存，前端才能获取到最新数据**
   
-  - **错误信息的改进**：
-    - 原错误信息："QWEN_API_KEY 环境变量未设置"
-    - 改进建议：添加更详细的错误信息和解决方案
-    - 改进后的错误信息示例：
-      ```python
-      if not api_key:
-          raise ValueError(
-              "QWEN_API_KEY 环境变量未设置\n"
-              "解决方案：\n"
-              "1. 确保 .env 文件存在\n"
-              "2. 在 .env 文件中添加：QWEN_API_KEY=your_api_key\n"
-              "3. 或者使用 --no-llm 参数禁用大模型分析"
-          )
-      ```
-    - 优势：用户可以快速理解问题并找到解决方案
-  
-  - **Git 提交和推送的工作流**：
-    - 提交 1：数据文件重构和文件上传功能
-    - 提交 2：重新训练所有模型
-    - 提交 3：添加 load_dotenv() 修复环境变量加载
-    - 推送：一次性推送所有提交到远程仓库
-    - 优势：
-      1. 每个提交专注于一个功能或修复
-      2. 提交信息清晰，便于代码审查
-      3. 推送前可以检查所有提交是否正确
-  
-  - **未提交更改的处理**：
-    - 18 个模型文件有未提交的更改
-    - 原因：这些是训练后的模型文件，文件较大
-    - 处理方案：
-      1. 可以单独提交模型文件
-      2. 可以在 .gitignore 中忽略模型文件
-      3. 可以使用 Git LFS（Large File Storage）管理大文件
-    - 当前决策：暂时不提交，等待用户确认
-  
-  - **测试验证的重要性**：
-    - 单个货币对测试：EUR 分析成功
-    - 所有货币对测试：6 个货币对全部成功
-    - LLM 调用测试：每个货币对分析耗时 40-50 秒
-    - 文件生成测试：成功生成 JSON 文件
-    - 教训：修复后必须进行全面的测试验证，确保问题真正解决
-
-- 日期：2026-03-27（第五次更新 - 数据文件重构和文件上传功能）
-- 作者：iFlow CLI
-- 版本：5.0 (数据文件重构 + 文件上传)
-- 更新内容：
-  - **项目目录组织的重要性**：
-    - 问题：Excel 数据文件散落在项目根目录，导致目录不够整洁
-    - 影响：
-      - 项目根目录包含非代码文件（.xlsx），违反了最佳实践
-      - 数据文件容易被误提交到 Git（虽然在 .gitignore 中忽略了，但仍然不理想）
-      - 不符合专业项目的目录组织规范
-    - 解决方案：
-      - 创建 `data/raw/` 目录专门存放原始数据文件
-      - 将所有 Excel 文件移动到 `data/raw/` 目录
-      - 更新配置文件中的默认路径
-      - 在 .gitignore 中添加 `data/raw/` 忽略规则
-    - 目录结构对比：
-      ```
-      # 重构前
-      fx_predict/
-      ├── FXRate_20260320.xlsx
-      ├── config.py
-      └── ...
-      
-      # 重构后
-      fx_predict/
-      ├── data/
-      │   └── raw/
-      │       └── FXRate_20260320.xlsx
-      ├── config.py
-      └── ...
-      ```
-    - 优势：
-      1. 项目根目录更加整洁，只包含配置文件和文档
-      2. 数据文件集中管理，易于查找和维护
-      3. 符合专业项目的目录组织规范
-      4. 避免误提交数据文件到 Git
-    - 教训：项目初始化时就应该规划好目录结构，避免后期重构
-  
-  - **文件上传功能的安全性考虑**：
-    - 问题：用户可以上传任意文件，存在安全隐患
-    - 安全措施：
-      1. 文件类型限制：只接受 `.xlsx` 文件
-      2. 文件大小限制：最大 10MB
-      3. 文件名处理：保留原始文件名（防止路径遍历攻击）
-      4. 存储位置：固定在 `data/raw/` 目录（无法指定其他路径）
-    - 代码实现：
-      ```javascript
-      // 文件类型过滤
-      fileFilter: function (req, file, cb) {
-        if (file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
-            file.originalname.endsWith('.xlsx')) {
-          cb(null, true);
-        } else {
-          cb(new Error('只接受 .xlsx 格式的文件'), false);
-        }
-      },
-      
-      // 文件大小限制
-      limits: {
-        fileSize: 10 * 1024 * 1024 // 10MB limit
-      },
-      
-      // 固定存储目录
-      destination: function (req, file, cb) {
-        const uploadDir = path.resolve(process.env.UPLOAD_DIR || '../data/raw');
-        cb(null, uploadDir);
-      }
-      ```
-    - 额外考虑：
-      - 文件重命名：避免文件名冲突（可以选择添加时间戳或 UUID）
-      - 文件覆盖：同名文件会覆盖，需要考虑是否提供警告
-      - 权限控制：是否需要身份验证才能上传文件
-  
-  - **环境变量配置的最佳实践**：
-    - 在 dashboard/.env.example 中添加 UPLOAD_DIR 配置示例
-    - 提供合理的默认值（`../data/raw`）
-    - 允许通过环境变量自定义上传目录
-    - 优势：
-      - 灵活性：用户可以自定义上传目录
-      - 可维护性：不需要修改代码即可更改配置
-      - 安全性：敏感配置不硬编码在代码中
-  
-  - **CORS 配置的扩展**：
-    - 原配置：只支持 GET 方法
-    - 新需求：文件上传需要 POST 方法
-    - 解决方案：更新 CORS 配置支持 GET 和 POST 方法
-    - 代码示例：
-      ```javascript
-      // 修改前
-      methods: ['GET']
-      
-      // 修改后
-      methods: process.env.ALLOWED_METHODS?.split(',') || ['GET', 'POST']
-      ```
-    - 考虑未来扩展：使用环境变量 ALLOWED_METHODS，便于添加其他方法
-  
-  - **缓存管理的重要性**：
-    - 问题：上传新数据文件后，Dashboard 仍然显示旧数据
-    - 原因：服务器缓存了旧数据，没有自动刷新
-    - 解决方案：文件上传成功后自动清除缓存
-    - 代码实现：
-      ```javascript
-      // 上传成功后清除缓存
-      dataCache.clear();
-      logInfo('Cache cleared after file upload');
-      ```
-    - 优势：
-      1. 用户无需手动重启服务器
-      2. 自动获取最新数据
-      3. 提升用户体验
-    - 教训：数据更新时必须考虑缓存失效
-  
-  - **测试驱动开发在文件上传中的应用**：
-    - 先编写测试用例：
-      1. 测试上传有效的 .xlsx 文件
-      2. 测试上传无效的文件类型
-      3. 测试不提供文件的情况
-    - 实现代码使测试通过
-    - 验证文件确实保存到正确目录
-    - 测试覆盖率：新增 2 个测试用例，覆盖率从 45.78% 提升到 48.97%
-  
-  - **文档更新的完整性**：
-    - 更新了 2 个主要文档（README.md 和 AGENTS.md）
-    - 更新了 2 个项目文档（progress.txt 和 lessons.md）
-    - 涉及的内容：
-      1. 数据文件路径说明
-      2. 项目结构更新
-      3. 使用方法更新
-      4. API 文档更新
-      5. 常见问题更新
-    - 教训：任何代码变更都应该同步更新文档，保持一致性
-  
-  - **向后兼容性考虑**：
-    - 问题：重构后，使用旧路径的命令会失败
-    - 解决方案：
-      1. 保持命令行参数的灵活性：支持相对路径和文件名
-      2. 系统会自动在 `data/raw/` 目录查找文件
-      3. 提供清晰的错误提示
-    - 示例：
-      ```bash
-      # 仍然支持
-      ./run_full_pipeline.sh --data-file FXRate_20260320.xlsx
-      # 系统会自动查找 data/raw/FXRate_20260320.xlsx
-      
-      # 也支持完整路径
-      ./run_full_pipeline.sh --data-file data/raw/FXRate_20260320.xlsx
-      ```
-    - 优势：不影响现有用户的使用习惯
-  
-  - **Git 忽略规则的完善**：
-    - 在 .gitignore 中添加 `data/raw/` 忽略规则
-    - 原因：数据文件通常很大，不应该提交到 Git
-    - 优势：
-      1. 减小仓库大小
-      2. 避免提交敏感数据
-      3. 保持仓库整洁
-    - 注意事项：需要提供示例数据文件（如 FXRate_20260320.xlsx）供新用户测试
-
-- 日期：2026-03-26（第四次更新 - Dashboard 用户体验和文档组织）
-- 作者：iFlow CLI
-- 版本：4.0 (Dashboard 优化 + 文档完善)
-- 更新内容：
-  - **UI 细节优化的重要性**：
-    - 问题：用户反馈图表显示"Day 1"、"Day 3"等，不够直观
-    - 原因：使用 `Array.from({ length: 30 }, (_, i) => \`Day ${i + 1}\`)` 生成标签
-    - 解决方案：使用实际日期（`toLocaleDateString` 生成"03/26"格式）
-    - 影响：用户可以清晰看到时间轴，更容易理解数据变化趋势
+  - **前端数据完整性验证**：
+    - 问题：前端直接使用 `pair.predictions['1d']`，没有验证字段是否存在
+    - 影响：当 `predictions` 字段缺失时，会抛出错误 "Cannot read properties of undefined"
+    - 解决方案：使用可选链和默认值
     - 代码示例：
       ```javascript
       // 修复前
-      const labels = Array.from({ length: 30 }, (_, i) => `Day ${i + 1}`);
+      const pred1d = predictions['1d'] || {};
       
-      // 修复后
-      const labels = Array.from({ length: 30 }, (_, i) => {
-        const date = new Date();
-        date.setDate(date.getDate() - (29 - i));
-        return date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' });
-      });
+      // 修复后（更健壮）
+      const pred1d = pair.predictions?.['1d'] || {};
+      const icon1d = getIconInfo(pred1d.prediction || 'hold');
       ```
+    - 教训：**前端应该使用防御性编程，验证数据结构完整性**
   
-  - **界面一致性维护**：
-    - 问题：风险提示显示英文货币对名称（"EUR"），其他地方显示中文（"欧元/美元"）
-    - 原因：renderRiskWarnings 函数没有传递 pairs 参数，无法建立映射
-    - 解决方案：
-      - 在 app.js 中调用时传递 pairs 参数：`renderRiskWarnings(riskData.risks, pairsData.pairs)`
-      - 在 components.js 中创建映射：`pairNameMap[pair] = p.pair_name || p.pair`
-      - 使用映射显示中文名称：`${pairName}: ${warning}`
-    - 教训：确保所有使用相同数据的组件都能访问完整的上下文信息
+  - **信息展示的UX原则**：
+    - 问题：卡片底部只显示1天的置信度，用户无法看到其他周期的信息
+    - 原因：设计时假设用户主要关注1天预测，但实际需要多周期对比
+    - 解决方案：在每个预测项中显示对应的概率和置信度
+    - 显示逻辑：
+      ```
+      [图标] [预测文本]
+      [概率% (置信度)]
+      ```
+    - 代码实现：
+      ```javascript
+      const formatPredictionInfo = (pred) => {
+        const probabilityPercent = (pred.probability * 100).toFixed(1) + '%';
+        const displayConfidence = confidenceMap[pred.confidence] || 'unknown';
+        return `${probabilityPercent} (${displayConfidence})`;
+      };
+      ```
+    - 教训：**关键信息应该在对应的位置显示，避免用户跨区域查找信息**
   
-  - **文档组织的层次结构**：
-    - 问题：README.md 快速开始章节信息过多，用户难以快速找到适合的方法
-    - 解决方案：
-      1. 将"使用方法对比"表格移到章节开头
-      2. 分为两个部分：极简使用方法（3步）和详细步骤说明（5步）
-      3. 使用表格对比两种方法的适用场景、配置复杂度、灵活性等
-    - 效果：用户可以在阅读详细步骤前先选择合适的方法
-    - 表格设计：
-      | 使用场景 | 极简使用方法 | 详细步骤说明 |
-      |---------|------------|------------|
-      | 适合人群 | 快速体验的用户 | 需要自定义的开发者 |
-      | 配置复杂度 | 低 | 高 |
-      | 适用场合 | 功能演示 | 生产环境部署 |
+  - **浏览器缓存和硬刷新**：
+    - 问题：代码更新后，浏览器仍显示旧版本的静态资源
+    - 原因：浏览器缓存了 .js 和 .css 文件
+    - 解决方案：硬刷新浏览器
+    - 操作方法：
+      - Windows/Linux: `Ctrl + Shift + R` 或 `Ctrl + F5`
+      - Mac: `Cmd + Shift + R`
+    - 教训：**前端静态资源更新后，用户需要硬刷新浏览器才能看到最新版本**
   
-  - **文档更新的迭代优化**：
-    - 第一次更新：删除 set_key.sh，简化为仅支持 .env
-    - 第二次更新：重新组织快速开始（极简 + 详细）
-    - 第三次更新：添加适用场景说明（列表形式）
-    - 第四次更新：将适用场景改为表格格式，移到章节开头
-    - 教训：文档也需要迭代优化，根据用户反馈持续改进
-  
-  - **简化配置说明**：
-    - 问题：数据文件配置优先级说明过于详细（3个级别）
-    - 用户反馈：只需要知道如何使用其他数据文件
-    - 解决方案：
-      - 删除复杂的优先级说明
-      - 改为简单的提示："如需使用其他数据文件，可通过命令行参数指定"
-      - 原则：文档应该简洁明了，突出重点
-    - 对比：
-      - 删除前：3行优先级说明 + 示例
-      - 删除后：1行简洁说明 + 示例
-  
-  - **图表标签本地化**：
-    - 问题：使用英文"Day X"不符合中文用户习惯
-    - 解决方案：使用 `toLocaleDateString` 生成本地化日期格式
-    - 配置：`{ month: '2-digit', day: '2-digit' }` 生成"03/26"格式
-    - 优势：
-      - 符合中文用户习惯
-      - 更直观的时间展示
-      - 减少理解成本
-  
-  - **自动刷新 vs 手动刷新**：
-    - 问题：用户反馈手动刷新按钮容易误点击
-    - 解决方案：删除手动刷新按钮，仅保留自动刷新（5分钟）
-    - 添加最后刷新时间显示，让用户知道数据更新时间
-    - 优势：
-      - 简化界面
-      - 避免误操作
-      - 提供透明度（用户知道上次刷新时间）
-  
-  - **图标和标题的语义化**：
-    - 问题：图表图标（📊）不够贴合外汇预测主题
-    - 解决方案：改用货币交易图标（💹）
-    - 标题更新："外汇预测仪表盘" → "金融市场外汇预测仪表盘"
-    - 效果：更符合项目定位，更专业的视觉呈现
-  
-  - **截图在文档中的价值**：
-    - 添加：2张 Dashboard 截图（主界面、技术指标）
-    - 位置：README.md 界面展示章节
-    - 优势：
-      - 用户可以快速了解界面效果
-      - 降低上手门槛
-      - 提供直观的功能展示
-    - 注意事项：
-      - 截图要清晰、完整
-      - 标注关键功能区域
-      - 保持版本同步更新
-
-- 日期：2026-03-26（第三次更新 - Dashboard 和用户体验）
-- 作者：iFlow CLI
-- 版本：3.0 (Dashboard + 中文化)
-- 更新内容：
-  - **大模型分析展示方案选择**：
-    - 问题：如何在不影响主界面布局的情况下展示详细的分析内容
-    - 方案比较：
-      - 方案1：独立分析卡片区域 - 占用空间大，信息分散
-      - 方案2：卡片嵌入 + 侧边栏详情 - 信息集中，交互友好 ✅
-      - 方案3：与策略表格整合 - 表格复杂度高
-      - 方案4：侧边栏 + 抽屉式 - 需要额外交互
-      - 方案5：模态弹窗 - 阻断用户操作
-    - 选择原因：方案2兼顾信息密度和用户体验
-    - 实现细节：
-      - 卡片显示50字摘要 + "查看详情"提示
-      - 点击卡片打开侧边栏（从右侧滑入）
-      - 侧边栏包含：基本信息、摘要、关键因素、各周期分析
-      - 点击遮罩或关闭按钮关闭侧边栏
-  
-  - **数据缓存问题排查**：
-    - 问题：Dashboard 显示"暂无分析"，但数据文件中有内容
-    - 排查过程：
-      1. 检查数据文件：确认包含 llm_analysis 字段
-      2. 检查 API 返回：使用 curl 测试 /api/v1/pairs 端点
-      3. 发现问题：Dashboard 服务器缓存了旧数据
-    - 解决方案：重启 Dashboard 服务器清除缓存
-    - 教训：数据更新后需要重启后端服务或清除缓存
-  
-  - **中文化策略**：
-    - 原则：用户界面全部中文，技术术语保留英文缩写
-    - 实现方式：
-      - 创建映射字典：recommendationMap, confidenceMap
-      - 在渲染时使用映射：recommendationMap[pair.prediction]
-      - 保持技术指标英文：SMA5、RSI14、MACD、ATR14等
-    - 原因：技术指标的英文缩写是行业标准，中文化反而增加理解成本
-    - 修改范围：
-      - Header：标题、按钮、时间标签
-      - 货币对：交易策略表格使用中文名称
-      - 预测/置信度：buy/sell/hold → 买入/卖出/持有
-      - 侧边栏：各周期分析的 recommendation 和 confidence
-      - 货币对选择器：只显示中文名称
-  
-  - **API 数据结构设计**：
-    - 问题：如何在前端和后端之间高效传递数据
-    - 解决方案：
-      - 后端：在 loadAllPairs 中添加 llm_analysis 字段
-      - 前端：在 renderStrategiesTable 中传入 pairs 参数建立映射
-      - 优势：避免多次 API 调用，减少网络开销
-    - 数据字段：
-      ```json
-      {
-        "pair": "EUR",
-        "pair_name": "欧元/美元",
-        "llm_analysis": {
-          "summary": "...",
-          "overall_assessment": "...",
-          "key_factors": [...],
-          "horizon_analysis": {...}
-        }
+  - **CSS Flex 布局的等宽分布**：
+    - 问题：三个预测项宽度不一致，导致显示不美观
+    - 原因：默认 flex 布局根据内容宽度分配空间
+    - 解决方案：为每个预测项添加 `flex: 1` 使其等宽分布
+    - 代码示例：
+      ```css
+      .prediction-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.25rem;
+        flex: 1;  /* 等宽分布 */
       }
       ```
+    - 教训：**Flex 布局中需要明确指定 flex 属性，确保元素按预期分布**
   
-  - **用户体验细节优化**：
-    - 文字长度控制：摘要最多50字，避免卡片过长
-    - 提示文字简化："点击查看完整分析 →" → "查看详情 →"
-    - 前缀添加：置信度前添加"置信度:"前缀提高可读性
-    - 描述文字：每个section添加说明文字，帮助用户理解功能
-  
-  - **CSS 动画和响应式设计**：
-    - 侧边栏动画：使用 CSS transition 实现平滑滑入效果
-    - 遮罩层：半透明黑色背景，点击关闭侧边栏
-    - 响应式：移动端侧边栏宽度100%，桌面端450px
-    - Z-index管理：确保侧边栏和遮罩层在最上层
-  
-  - **浏览器缓存处理**：
-    - 问题：硬刷新（Ctrl+Shift+R）后仍显示旧数据
-    - 解决方案：
-      1. 重启 Dashboard 服务器
-      2. 清除浏览器缓存
-      3. 或使用开发者工具禁用缓存
-    - 最佳实践：生产环境使用版本化静态资源避免缓存问题
-
-- 日期：2026-03-26（第二次更新 - 日期处理经验）
-- 作者：iFlow CLI
-- 版本：2.0.1 (日期修复)
-- 更新内容：
-  - **日期索引处理的陷阱**：
-    - 问题：数据使用整数索引（`RangeIndex`）而非日期索引
-    - 影响：系统误以为没有日期信息，使用当前日期（2026-03-26）而非数据日期（2026-03-20）
-    - 差异：6 天的时间差导致目标日期计算错误
-  
-  - **修复策略**：
-    - 优先级顺序：Date 列 > 索引类型 > 当前日期（默认）
-    - 修改 4 个方法：predict(), predict_horizon(), _get_default_prediction(), build()
-    - 添加健壮性检查：`if 'Date' in data.columns`
-  
-  - **教训**：
-    1. **不要假设索引类型**：数据加载器可能返回整数索引、日期索引或其他类型
-    2. **检查列而非索引**：如果数据有 Date 列，优先使用列中的值而非索引
-    3. **测试边界情况**：测试不同索引类型（RangeIndex, DatetimeIndex, MultiIndex）
-    4. **验证输出日期**：输出日期应该与数据文件日期一致，而非运行日期
-  
-  - **测试方法**：
-    ```python
-    # 验证数据日期
-    if 'Date' in data.columns:
-        assert data['Date'].iloc[-1] == expected_date
-    
-    # 验证输出日期
-    assert result['data_date'] == data_file_date
-    assert result['target_date'] == data_file_date + timedelta(days=horizon)
-    ```
-  
-  - **用户影响**：
-    - 修复前：用户看到"2026-03-26"的预测，可能误以为是最新的数据
-    - 修复后：用户看到"2026-03-20"的预测，明确知道数据来源日期
-    - 透明度提升：用户可以准确判断预测的时效性
-
-- 日期：2026-03-26（第一次更新 - 多周期分析系统）
-- 作者：iFlow CLI
-- 版本：2.0 (多周期分析系统)
-- 更新内容：
-  - **多周期预测架构设计**：
-    - 独立模型 vs 共享模型的权衡
-    - 选择独立模型（每个周期一个模型）的原因：灵活性高、避免周期间干扰
-    - 模型文件命名规范：`{pair}_catboost_{horizon}d.pkl`
-  
-  - **LLM 双重验证机制**：
-    - LLM 作为核心决策者，ML 预测作为验证参考
-    - 降级策略：LLM 不可用时自动切换到规则引擎
-    - JSON 输出验证：确保 LLM 返回结构化、可解析的响应
-  
-  - **模块化设计的收益**：
-    - 5 个新模块各司其职，职责清晰
-    - 便于测试和维护（新模块覆盖率 98-100%）
-    - 易于扩展和修改
-  
-  - **TDD 在大型项目中的应用**：
-    - 12 个任务，每个任务都遵循红-绿-重构流程
-    - 小步迭代（每个步骤 2-5 分钟）降低复杂度
-    - 测试先行帮助理解需求和设计接口
-  
-  - **字段命名一致性**：
-    - 设计阶段统一字段名称的重要性
-    - 修复成本：3 次审查循环，修改 20+ 处引用
-    - 教训：设计完成后立即进行代码审查，避免重复修改
-  
-  - **JSON Schema 验证**：
-    - 在格式化器中添加 Schema 验证
-    - 7 个必需部分：metadata, ml_predictions, consistency_analysis, llm_analysis, trading_strategies, technical_indicators, risk_analysis
-    - 验证在写入文件前进行，确保输出质量
-- 日期：2026-03-27（第八次更新 - Docker 容器化部署）
-- 作者：iFlow CLI
-- 版本：8.0 (Docker 部署)
-- 更新内容：
-  - **Alpine Linux 的局限性**：
-    - 问题：Alpine Linux 缺少预编译 wheel，需要编译 catboost 和 scikit-learn
-    - 尝试修复（7次失败）：
-      1. 添加 --break-system-packages 标志
-      2. 添加 gcc, g++, make, musl-dev
-      3. 添加 pkgconfig, openmp-dev
-      4. 添加 python3-dev
-      5. 约束 scikit-learn 版本到 1.2.x
-      6. 移除不可用的包（py3-pythran, cython）
-      7. 添加各种编译依赖
-    - 失败原因：
-      - Alpine Linux 使用 musl libc，与 glibc 不兼容
-      - 大多数 Python 包没有 musllinux wheel
-      - 编译过程复杂，需要大量编译工具和依赖
-      - 编译时间长，容易出错
-    - 最终解决方案：从 Alpine Linux 切换到 Debian 12（python:3.12-slim）
-    - 成功原因：
-      - Debian 使用 glibc，与大多数 Python 包兼容
-      - 大多数包有预编译 wheel（manylinux）
-      - 编译环境更完善
-      - 文档和支持更好
-    - 结果：
-      - 镜像大小：1.48GB（Alpine 会更小，但构建成功率低）
-      - 构建时间：约 4 分钟（Alpine 可能更慢，因为需要编译）
-      - 构建成功率：100%（Alpine 多次失败）
-    - 教训：**选择操作系统时，考虑包的可用性和兼容性，而不仅仅是镜像大小**
-  
-  - **Docker 构建上下文的正确设置**：
-    - 问题：错误 "lstat dashboard: no such file or directory"
-    - 原因：build context 设置不正确
-    - 解决方案：
-      - 使用项目根目录作为 build context：`docker build -t fx-predict -f dashboard/docker/Dockerfile .`
-      - 所有 COPY 路径相对于 build context（项目根目录）
-      - Dockerfile 中的路径示例：
-        ```dockerfile
-        COPY requirements.txt ./
-        COPY dashboard/package*.json ./
-        COPY dashboard/docker/docker-entrypoint.sh /usr/local/bin/
-        ```
-    - docker-deploy.sh 修复：
-      ```bash
-      # 错误：从 dashboard/docker/ 目录运行
-      cd dashboard/docker
-      docker build -t fx-predict ./
-      
-      # 正确：切换到项目根目录运行
-      cd /data/fx_predict
-      docker build -t fx-predict -f dashboard/docker/Dockerfile .
-      
-      # 或者在脚本中使用子 shell
-      (
-        cd "$PROJECT_DIR"
-        docker build -t fx-predict -f dashboard/docker/Dockerfile .
-      )
-      ```
-    - 教训：**build context 是 Docker 构建的工作目录，所有 COPY 路径必须相对于它**
-  
-  - **Python 版本和包管理器**：
-    - 问题：Python 3.11+ 的外部管理环境错误
-    - 错误信息："This environment is externally managed"
-    - 原因：PEP 668 规定系统 Python 不能被 pip 修改
-    - 解决方案：
-      - Alpine：添加 `--break-system-packages` 标志
-      - Debian：不需要此标志（python:3.12-slim 不是系统 Python）
-    - 教训：**不同 Linux 发行版对 Python 管理有不同的策略，需要适配**
-  
-  - **多阶段构建的价值**：
-    - 问题：构建过程包含多个步骤（Dashboard 构建 + Python 环境 + 应用代码）
-    - 解决方案：使用多阶段构建
-    - 优势：
-      - 分离构建和运行环境
-      - 减小最终镜像大小（不包含构建工具）
-      - 提高构建缓存效率
-      - 支持并行构建
-    - 示例：
-      ```dockerfile
-      # 第一阶段：构建 Dashboard
-      FROM node:18-alpine AS dashboard-builder
-      WORKDIR /app/dashboard
-      COPY dashboard/package*.json ./
-      RUN npm ci --only=production
-      COPY dashboard/ ./
-      
-      # 第二阶段：最终镜像
-      FROM python:3.12-slim
-      COPY requirements.txt ./
-      RUN pip install -r requirements.txt
-      COPY --from=dashboard-builder /app/dashboard ./dashboard
-      ```
-    - 教训：**多阶段构建可以优化镜像大小和构建速度**
-  
-  - **Volume 挂载的最佳实践**：
-    - 问题：容器删除后数据丢失
-    - 解决方案：使用 Volume 挂载
-    - 挂载策略：
-      - 配置文件：`.env:/app/.env:ro`（只读，避免容器修改）
-      - 数据目录：`data/raw:/app/data/raw`（原始数据）
-      - 模型目录：`data/models:/app/data/models`（训练模型）
-      - 预测目录：`data/predictions:/app/data/predictions`（预测结果）
-      - 日志目录：`logs:/app/logs`（日志文件）
-    - 优势：
-      - 数据持久化，容器删除不丢失
-      - 宿主机可以直接查看和修改数据
-      - 便于调试和数据备份
-    - 教训：**使用 Volume 挂载实现数据持久化和数据共享**
-  
-  - **健康检查的重要性**：
-    - 问题：容器启动后应用崩溃，但容器仍然运行
-    - 解决方案：添加健康检查
-    - 配置示例：
-      ```dockerfile
-      HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-        CMD node -e "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
-      ```
-    - 参数说明：
-      - interval：检查间隔（30秒）
-      - timeout：超时时间（10秒）
-      - start-period：启动宽限期（40秒，启动期间不算失败）
-      - retries：重试次数（3次）
-    - 教训：**健康检查可以自动监控容器状态，及时发现异常**
-  
-  - **日志管理的最佳实践**：
-    - 问题：日志文件无限增长，占满磁盘空间
-    - 解决方案：限制日志大小和数量
-    - 配置示例：
-      ```yaml
-      logging:
-        driver: "json-file"
-        options:
-          max-size: "10m"  # 每个日志文件最大 10MB
-          max-file: "3"     # 保留最多 3 个日志文件
-      ```
-    - 优势：
-      - 限制磁盘占用（最多 30MB）
-      - 自动轮转，避免日志文件过大
-      - 保留最近的日志，便于调试
-    - 教训：**限制日志大小和数量，避免磁盘空间耗尽**
-  
-  - **资源限制的配置**：
-    - 问题：容器占用过多系统资源，影响其他应用
-    - 解决方案：配置 CPU 和内存限制
-    - 配置示例：
-      ```yaml
-      deploy:
-        resources:
-          limits:
-            cpus: '2'      # 最大 2 核 CPU
-            memory: 2G     # 最大 2GB 内存
-          reservations:
-            cpus: '0.5'    # 预留 0.5 核 CPU
-            memory: 512M   # 预留 512MB 内存
-      ```
-    - 优势：
-      - 防止容器占用过多系统资源
-      - 确保关键服务有足够的资源
-      - 提高系统稳定性
-    - 教训：**配置资源限制，防止容器占用过多系统资源**
-  
-  - **.dockerignore 文件的重要性**：
-    - 问题：Docker 构建上下文过大，构建时间长
-    - 原因：包含了不必要的文件（如 .git, node_modules, __pycache__）
-    - 解决方案：创建 .dockerignore 文件
-    - 配置示例：
-      ```
-      # Git
-      .git/
-      .gitignore
-      
-      # Python
-      __pycache__/
-      *.py[cod]
-      *.so
-      
-      # Node
-      node_modules/
-      
-      # 数据文件（通过 volume 挂载）
-      data/raw/*.xlsx
-      data/models/*.pkl
-      ```
-    - 优势：
-      - 减小构建上下文大小
-      - 加快构建速度
-      - 避免将敏感文件包含到镜像中
-    - 教训：**使用 .dockerignore 文件排除不必要的文件，减小构建上下文**
-  
-  - **脚本封装 Docker 命令的价值**：
-    - 问题：Docker 命令复杂，用户难以记忆和使用
-    - 解决方案：创建 docker-deploy.sh 脚本封装 Docker 命令
-    - 脚本功能：
-      - build：构建 Docker 镜像
-      - up：启动容器（后台运行）
-      - down：停止并删除容器
-      - restart：重启容器
-      - ps：查看容器状态
-      - logs：查看容器日志
-      - exec：在容器中执行命令
-      - status：查看详细状态
-      - clean：清理未使用的镜像和容器
-    - 优势：
-      - 简化用户操作
-      - 统一命令接口
-      - 隐藏 Docker 命令的复杂性
-      - 添加额外的功能（如颜色输出、错误处理）
-    - 教训：**使用脚本封装复杂的 Docker 命令，提高用户体验**
-  
-  - **容器启动脚本的优雅处理**：
-    - 问题：容器启动后，进程崩溃但容器仍然运行
-    - 解决方案：使用 docker-entrypoint.sh 作为容器启动脚本
-    - 脚本功能：
-      - 启动 Dashboard 服务器（后台运行）
-      - 配置 cron 定时任务（每小时执行 run_full_pipeline.sh）
-      - 日志重定向到 /app/logs/cron.log 和 /app/logs/pipeline.log
-      - 信号处理：优雅退出
+  - **字体大小的层级关系**：
+    - 问题：概率和置信度信息占用过多空间，导致卡片过长
+    - 原因：使用了与标签相同的字体大小（0.875rem）
+    - 解决方案：减小字体大小到 0.625rem，与标签字体大小一致
     - 代码示例：
-      ```bash
-      # 启动 Dashboard（后台）
-      cd /app/dashboard && node server.js > /app/logs/dashboard.log 2>&1 &
+      ```css
+      .prediction-label {
+        font-size: 0.625rem;
+      }
       
-      # 配置 cron 任务
-      echo "0 * * * * cd /app && bash run_full_pipeline.sh >> /app/logs/pipeline.log 2>&1" | crontab -
+      .prediction-icon {
+        font-size: 1.5rem;
+      }
       
-      # 启动 cron 守护进程
-      crond -f 2>&1 | tee /app/logs/cron.log
-      
-      # 信号处理
-      trap 'echo "Received signal, shutting down..."; kill $(jobs -p); exit 0' SIGTERM SIGINT
-      
-      # 等待所有后台进程
-      wait
+      .prediction-info {
+        font-size: 0.625rem;  /* 与标签大小一致 */
+      }
       ```
-    - 教训：**使用容器启动脚本管理多个进程，实现优雅退出**
+    - 教训：**字体大小应该有明确的层级关系，信息密度和可读性需要平衡**
   
-  - **Docker 文档的重要性**：
-    - 问题：用户不知道如何使用 Docker 部署
-    - 解决方案：创建详细的部署文档（DOCKER.md，575行）
-    - 文档内容：
-      - 功能特性说明
-      - 前置要求
-      - 快速开始指南
-      - 两种部署方式（docker-deploy.sh 和 docker-compose）
-      - 常用命令
-      - 故障排查
-      - 备份与恢复
-      - 监控
-      - 升级
-      - 性能优化
-    - 优势：
-      - 降低使用门槛
-      - 减少用户疑问
-      - 提高文档化程度
-    - 教训：**详细的文档是项目成功的基础，降低用户学习成本**
+  - **中文化映射的维护**：
+    - 代码中已有中文化映射：`confidenceMap = { 'high': '高', 'medium': '中', 'low': '低', 'unknown': '未知' }`
+    - 新增显示复用了现有映射，无需额外修改
+    - 教训：**中文化映射应该集中管理，避免分散在多个地方**
   
-  - **版本约束的重要性**：
-    - 问题：pip 总是选择最新版本，即使最新版本需要编译
-    - 解决方案：使用精确的版本范围
-    - 示例：
-      ```txt
-      # 错误：可能选择 1.8.0（需要编译）
-      scikit-learn>=1.2.0
-      
-      # 正确：强制选择 1.2.x（有预编译 wheel）
-      scikit-learn>=1.2.0,<1.3.0
-      ```
-    - 优势：
-      - 确保版本兼容性
-      - 避免不必要的编译
-      - 加快构建速度
-    - 教训：**使用精确的版本范围约束，确保包的可用性和兼容性**
-  
-  - **Node.js 在 Python 容器中的安装**：
-    - 问题：python:3.12-slim 不包含 Node.js
-    - 解决方案：通过 NodeSource 仓库安装 Node.js 18
+  - **后端数据结构的向后兼容**：
+    - 问题：旧版本的前端代码可能不包含 `predictions` 字段
+    - 解决方案：后端提供默认值，确保向后兼容
     - 代码示例：
-      ```dockerfile
-      # 安装 Node.js 18
-      RUN apt-get update && apt-get install -y --no-install-recommends \
-          curl \
-          bash \
-          && curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
-          && apt-get install -y --no-install-recommends nodejs \
-          && rm -rf /var/lib/apt/lists/*
+      ```javascript
+      predictions: {
+        '1d': {
+          prediction: predictions1d.prediction_text || 'hold',  // 默认值
+          probability: predictions1d.probability || 0.5,         // 默认值
+          confidence: predictions1d.confidence || 'unknown'      // 默认值
+        },
+        // ...
+      }
       ```
-    - 优势：
-      - 使用官方 NodeSource 仓库
-      - 可以安装任意版本的 Node.js
-      - 保持容器最小化
-    - 教训：**在 Python 容器中安装 Node.js 时，使用 NodeSource 仓库确保兼容性**
+    - 教训：**后端应该提供合理的默认值，确保向后兼容性**
   
-  - **总结**：
-    - **操作系统选择**：考虑包的可用性和兼容性，而非仅仅是镜像大小
-    - **构建上下文**：正确设置 build context，所有 COPY 路径相对于它
-    - **多阶段构建**：优化镜像大小和构建速度
-    - **Volume 挂载**：实现数据持久化和数据共享
-    - **健康检查**：自动监控容器状态
-    - **日志管理**：限制日志大小和数量
-    - **资源限制**：防止容器占用过多系统资源
-    - **脚本封装**：简化用户操作
-    - **文档完整性**：详细的文档是项目成功的基础
-    - **版本约束**：确保包的可用性和兼容性
+  - **API 端点验证的重要性**：
+    - 问题：前端显示异常，无法确定是前端还是后端问题
+    - 解决方案：直接测试 API 端点，排除前端问题
+    - 验证方法：
+      ```bash
+      # 测试所有货币对的 predictions 字段
+      curl -s http://localhost:3000/api/v1/pairs | python3 -c "import sys, json; data=json.load(sys.stdin); [print(f\"{p['pair']}: predictions={p.get('predictions', 'MISSING')}\") for p in data['pairs']]"
+      ```
+    - 输出示例：
+      ```
+      NZD: predictions={'1d': {'prediction': '下跌', ...}, '5d': {...}, '20d': {...}}
+      JPY: predictions={'1d': {'prediction': '上涨', ...}, '5d': {...}, '20d': {...}}
+      ...
+      ```
+    - 教训：**使用 API 测试工具（curl, Postman）可以快速定位问题，排除前端或后端问题**
