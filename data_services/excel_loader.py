@@ -114,6 +114,15 @@ class FXDataLoader:
         # 按日期升序排序（旧数据在前）
         if 'Date' in df.columns:
             df = df.sort_values('Date', ascending=True).reset_index(drop=True)
+        
+        # 自动去重：删除重复的日期行，每个日期只保留第一行
+        if 'Date' in df.columns:
+            before_count = len(df)
+            df = df.drop_duplicates(subset=['Date'], keep='first')
+            after_count = len(df)
+            if before_count > after_count:
+                self.logger.warning(f"发现并删除了 {before_count - after_count} 条重复日期数据")
+                self.logger.info(f"去重后数据量: {after_count} 条记录")
 
         # 如果缺少 High/Low/Open 列，基于 Close 列自动生成
         # 这使得技术指标引擎可以正常工作
