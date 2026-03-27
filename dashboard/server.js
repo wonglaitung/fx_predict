@@ -407,6 +407,114 @@ const upload = multer({
   }
 });
 
+// Extract key indicators from full technical indicators
+function extractKeyIndicators(indicators, strategy) {
+  const trend = indicators.trend || {};
+  const momentum = indicators.momentum || {};
+  const volatility = indicators.volatility || {};
+  const pricePattern = indicators.price_pattern || {};
+  const marketEnvironment = indicators.market_environment || {};
+  
+  const currentPrice = strategy.entry_price || 0;
+  
+  // Calculate price position in Bollinger Bands
+  const bbUpper = trend.BB_Upper || 0;
+  const bbMiddle = trend.BB_Middle || 0;
+  const bbLower = trend.BB_Lower || 0;
+  let pricePosition = '未知';
+  if (currentPrice > bbUpper) pricePosition = '上轨之上';
+  else if (currentPrice < bbLower) pricePosition = '下轨之下';
+  else pricePosition = '中轨附近';
+  
+  // Determine RSI status
+  const rsi14 = momentum.RSI14 || 50;
+  let rsiStatus = '中性';
+  if (rsi14 > 70) rsiStatus = '超买';
+  else if (rsi14 < 30) rsiStatus = '超卖';
+  
+  // Determine trend status
+  const adx = trend.ADX || 0;
+  let trendStatus = '无趋势';
+  if (adx > 25) trendStatus = '强势';
+  else if (adx < 20) trendStatus = '弱势';
+  
+  // Determine Williams%R status
+  const williamsR = momentum.Williams_R_14 || -50;
+  let williamsStatus = '中性';
+  if (williamsR > -20) williamsStatus = '超买';
+  else if (williamsR < -80) williamsStatus = '超卖';
+  
+  return {
+    support_resistance: {
+      bb_upper: bbUpper,
+      bb_middle: bbMiddle,
+      bb_lower: bbLower,
+      price_position: pricePosition,
+      interpretation: `价格${pricePosition === '中轨附近' ? '在中轨附近' : pricePosition === '上轨之上' ? '突破上轨，可能回调' : '跌破下轨，可能反弹'}，布林带宽度正常。`
+    },
+    trend_strength: {
+      adx: adx.toFixed(2),
+      trend: trendStatus,
+      ma_alignment: marketEnvironment.MA_Alignment || 0,
+      interpretation: trendStatus === '强势' ? 'ADX显示趋势强劲，适合趋势交易。' : 
+                     trendStatus === '弱势' ? 'ADX显示趋势较弱，适合区间交易。' : 
+                     'ADX显示无明显趋势，建议观望。'
+    },
+    momentum: {
+      rsi14: rsi14.toFixed(1),
+      rsi_status: rsiStatus,
+      macd: trend.MACD?.toFixed(6) || 0,
+      macd_signal: trend.MACD_Signal?.toFixed(6) || 0,
+      interpretation: rsiStatus === '超买' ? 'RSI超买，可能回调。' :
+                     rsiStatus === '超卖' ? 'RSI超卖，可能反弹。' :
+                     'RSI中性，等待更明确信号。'
+    },
+    volatility: {
+      atr14: volatility.ATR14?.toFixed(4) || 0,
+      volatility_20d: volatility.Volatility_20d?.toFixed(4) || 0,
+      interpretation: volatility.Volatility_20d > 0.02 ? '波动率较高，注意风险。' : '波动率正常。'
+    },
+    key_ma: {
+      sma5: trend.SMA5?.toFixed(4) || 0,
+      sma10: trend.SMA10?.toFixed(4) || 0,
+      sma20: trend.SMA20?.toFixed(4) || 0,
+      sma120: trend.SMA120?.toFixed(4) || 0,
+      interpretation: `${trend.SMA120 > currentPrice ? 'SMA120在上形成阻力' : 'SMA120在下形成支撑'}，短期均线${trend.SMA5 > trend.SMA20 ? '多头排列' : '空头排列'}。`
+    },
+    signals: {
+      williams_r: williamsR.toFixed(1),
+      status: williamsStatus,
+      cci20: momentum.CCI20?.toFixed(1) || 0,
+      interpretation: williamsStatus === '超买' ? 'Williams%R超买信号。' :
+                     williamsStatus === '超卖' ? 'Williams%R超卖信号。' :
+                     'Williams%R中性，无明确信号。'
+    }
+  };
+}
+
+// Generate overall summary text
+function generateOverallSummary(pairName, horizon, indicators, strategy) {
+  const horizonName = getHorizonName(horizon);
+  const direction = strategy.direction || 'hold';
+  const directionText = direction === 'buy' ? '偏多' : direction === 'sell' ? '偏空' : '中性';
+  
+  const trendStrength = indicators.trend_strength.trend;
+  const rsiStatus = indicators.momentum.rsi_status;
+  const pricePosition = indicators.support_resistance.price_position;
+  
+  return `${pairName}${horizonName}当前技术面${directionText}，价格${pricePosition}，ADX显示${trendStrength}。RSI14为${indicators.momentum.rsi14}处于${rsiStatus}区域，建议${rsiStatus === '中性' ? '等待更明确的信号' : '注意可能的反转信号'}。`;
+}
+
+// Get Chinese name for horizon
+function getHorizonName(horizon) {
+  const names = {
+    '1': '短线（1天）',
+    '5': '中线（5天）',
+    '20': '长线（20天）'
+  };
+  return names[horizon] || `${horizon}天`;
+}
+
 // Upload data file endpoint
 app.post('/api/v1/upload', upload.single('file'), (req, res) => {
   try {
@@ -424,6 +532,7 @@ app.post('/api/v1/upload', upload.single('file'), (req, res) => {
 
     // Clear cache to force reload with new data
     dataCache.clear();
+    dataCache.clearByPattern('strategy_indicators:');
     logInfo('Cache cleared after file upload');
 
     res.json({
@@ -441,6 +550,103 @@ app.post('/api/v1/upload', upload.single('file'), (req, res) => {
       error: {
         code: 'INTERNAL_ERROR',
         message: '文件上传失败'
+      }
+    });
+  }
+});
+
+// Get strategy indicators for a specific pair and horizon
+app.get('/api/v1/strategies/:pair/:horizon/indicators', (req, res) => {
+  try {
+    const { pair, horizon } = req.params;
+    const validPairs = ['EUR', 'JPY', 'AUD', 'GBP', 'CAD', 'NZD'];
+    const validHorizons = ['1', '5', '20'];
+    
+    // Validate parameters
+    if (!validPairs.includes(pair)) {
+      return res.status(400).json({
+        error: {
+          code: 'INVALID_REQUEST',
+          message: '货币对代码无效',
+          details: '支持的货币对：EUR, JPY, AUD, GBP, CAD, NZD'
+        }
+      });
+    }
+    
+    if (!validHorizons.includes(horizon)) {
+      return res.status(400).json({
+        error: {
+          code: 'INVALID_REQUEST',
+          message: '周期参数无效',
+          details: '支持的周期：1, 5, 20'
+        }
+      });
+    }
+    
+    // Check cache
+    const cacheKey = `strategy_indicators:${pair}:${horizon}`;
+    const cached = dataCache.get(cacheKey);
+    if (cached) {
+      return res.json(cached);
+    }
+    
+    // Load data
+    const data = dataLoader.loadPair(pair);
+    
+    // Get technical indicators and trading strategies
+    const indicators = data.technical_indicators || {};
+    const metadata = data.metadata || {};
+    const strategies = data.trading_strategies || {};
+    
+    // Get strategy for the horizon
+    const strategyMap = {
+      '1': strategies.short_term,
+      '5': strategies.medium_term,
+      '20': strategies.long_term
+    };
+    const strategy = strategyMap[horizon] || {};
+    
+    // Extract key indicators
+    const keyIndicators = extractKeyIndicators(indicators, strategy);
+    
+    // Generate overall summary
+    const overallSummary = generateOverallSummary(
+      metadata.pair_name,
+      horizon,
+      keyIndicators,
+      strategy
+    );
+    
+    const response = {
+      pair: metadata.pair,
+      pair_name: metadata.pair_name,
+      horizon: parseInt(horizon),
+      horizon_name: getHorizonName(horizon),
+      current_price: metadata.current_price,
+      key_indicators: keyIndicators,
+      overall_summary: overallSummary
+    };
+    
+    // Cache the result
+    dataCache.set(cacheKey, response);
+    
+    res.json(response);
+  } catch (error) {
+    logError(`Failed to load strategy indicators for ${pair}/${horizon}: ${error.message}`);
+    
+    if (error.message.includes('No data found')) {
+      return res.status(404).json({
+        error: {
+          code: 'NOT_FOUND',
+          message: '数据未找到'
+        }
+      });
+    }
+    
+    res.status(500).json({
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: '服务器内部错误'
       }
     });
   }
@@ -522,6 +728,16 @@ if (require.main === module) {
           { name: 'file', type: 'file', description: 'Excel 文件 (.xlsx), 最大 10MB' }
         ],
         response: '{ success: true, message: "文件上传成功", file: { filename, size, uploaded_at } }'
+      },
+      {
+        method: 'GET',
+        path: '/api/v1/strategies/:pair/:horizon/indicators',
+        description: '获取指定货币对和周期的关键技术指标',
+        params: [
+          { name: 'pair', type: 'string', description: '货币对代码 (EUR, JPY, AUD, GBP, CAD, NZD)' },
+          { name: 'horizon', type: 'string', description: '预测周期 (1, 5, 20)' }
+        ],
+        response: '{ pair, pair_name, horizon, horizon_name, current_price, key_indicators, overall_summary }'
       }
     ];
     
