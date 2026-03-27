@@ -488,9 +488,9 @@ function extractKeyIndicators(indicators, strategy) {
   const currentPrice = strategy.entry_price || 0;
   
   // Calculate price position in Bollinger Bands
-  const bbUpper = trend.BB_Upper || 0;
-  const bbMiddle = trend.BB_Middle || 0;
-  const bbLower = trend.BB_Lower || 0;
+  const bbUpper = volatility.BB_Upper || 0;
+  const bbMiddle = volatility.BB_Middle || 0;
+  const bbLower = volatility.BB_Lower || 0;
   let pricePosition = '未知';
   if (currentPrice > bbUpper) pricePosition = '上轨之上';
   else if (currentPrice < bbLower) pricePosition = '下轨之下';
