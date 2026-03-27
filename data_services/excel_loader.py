@@ -154,8 +154,8 @@ class FXDataLoader:
                 return False
 
         # 检查日期格式
-        if df['Date'].dtype != 'datetime64[ns]':
-            self.logger.error("Date 列不是 datetime 类型")
+        if not pd.api.types.is_datetime64_any_dtype(df['Date']):
+            self.logger.error(f"Date 列不是 datetime 类型，当前类型: {df['Date'].dtype}")
             return False
 
         # 检查 Close 是否为数值类型
