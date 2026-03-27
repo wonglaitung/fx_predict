@@ -37,7 +37,7 @@ COPY ml_services/ ./ml_services/
 COPY llm_services/ ./llm_services/
 
 # 安装 Python 依赖
-RUN pip3 install --no-cache-dir -r requirements.txt
+RUN pip3 install --break-system-packages --no-cache-dir -r requirements.txt
 
 # 从第一阶段复制 Dashboard
 COPY --from=dashboard-builder /app/dashboard ./dashboard
