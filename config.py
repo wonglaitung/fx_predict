@@ -22,7 +22,8 @@ CURRENCY_PAIRS = {
     'AUD': {'symbol': 'AUDUSD', 'name': '澳元/美元'},
     'GBP': {'symbol': 'GBPUSD', 'name': '英镑/美元'},
     'CAD': {'symbol': 'USDCAD', 'name': '美元/加元'},
-    'NZD': {'symbol': 'NZDUSD', 'name': '新西兰元/美元'}
+    'NZD': {'symbol': 'NZDUSD', 'name': '新西兰元/美元'},
+    'HKD': {'symbol': 'HKDCNY', 'name': '港币/人民币'}
 }
 
 
@@ -98,14 +99,15 @@ INDICATOR_CONFIG = {
 # 数据配置
 DATA_CONFIG = {
     'data_file': 'data/raw/FXRate_20260320.xlsx',  # 默认数据文件路径
-    'supported_pairs': ['EUR', 'JPY', 'GBP', 'AUD', 'CAD', 'NZD'],
+    'supported_pairs': ['EUR', 'JPY', 'GBP', 'AUD', 'CAD', 'NZD', 'HKD'],
     'pair_symbols': {
         'EUR': 'EURUSD',
         'JPY': 'USDJPY',
         'GBP': 'GBPUSD',
         'AUD': 'AUDUSD',
         'CAD': 'USDCAD',
-        'NZD': 'NZDUSD'
+        'NZD': 'NZDUSD',
+        'HKD': 'HKDCNY'
     },
     'min_data_points': 100,
     'train_test_split': 0.8
