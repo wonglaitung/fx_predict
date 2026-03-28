@@ -173,10 +173,11 @@ train_all_pairs() {
         print_info "训练 ${pair} 模型（所有周期）..."
 
         # 训练所有周期的模型
-        if DATA_FILE="$DATA_FILE" python3 -m ml_services.fx_trading_model \
+        if python3 -m ml_services.fx_trading_model \
             --mode train \
             --pair "$pair" \
-            --all-horizons; then
+            --all-horizons \
+            --data_file "$DATA_FILE"; then
             print_success "${pair} 所有周期模型训练完成"
         else
             print_error "${pair} 模型训练失败"
@@ -205,9 +206,11 @@ predict_all_pairs() {
         print_info "预测 ${pair}（所有周期）..."
 
         # 预测所有周期
-        if DATA_FILE="$DATA_FILE" python3 -m ml_services.fx_trading_model \
+        if python3 -m ml_services.fx_trading_model \
             --mode predict \
             --pair "$pair" \
+            --all-horizons \
+            --data_file "$DATA_FILE"; then
             --all-horizons; then
             print_success "${pair} 所有周期预测完成"
         else
