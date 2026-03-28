@@ -173,7 +173,7 @@ train_all_pairs() {
         print_info "训练 ${pair} 模型（所有周期）..."
 
         # 训练所有周期的模型
-        if python3 -m ml_services.fx_trading_model \
+        if DATA_FILE="$DATA_FILE" python3 -m ml_services.fx_trading_model \
             --mode train \
             --pair "$pair" \
             --all-horizons; then
@@ -205,7 +205,7 @@ predict_all_pairs() {
         print_info "预测 ${pair}（所有周期）..."
 
         # 预测所有周期
-        if python3 -m ml_services.fx_trading_model \
+        if DATA_FILE="$DATA_FILE" python3 -m ml_services.fx_trading_model \
             --mode predict \
             --pair "$pair" \
             --all-horizons; then
