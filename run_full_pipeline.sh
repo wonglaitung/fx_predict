@@ -167,7 +167,7 @@ train_all_pairs() {
     local start_time=$(date +%s)
 
     # 货币对列表
-    local pairs=("EUR" "JPY" "AUD" "GBP" "CAD" "NZD")
+    local pairs=("EUR" "JPY" "AUD" "GBP" "CAD" "NZD" "HKD")
 
     for pair in "${pairs[@]}"; do
         print_info "训练 ${pair} 模型（所有周期）..."
@@ -199,7 +199,7 @@ predict_all_pairs() {
     local start_time=$(date +%s)
 
     # 货币对列表
-    local pairs=("EUR" "JPY" "AUD" "GBP" "CAD" "NZD")
+    local pairs=("EUR" "JPY" "AUD" "GBP" "CAD" "NZD" "HKD")
 
     for pair in "${pairs[@]}"; do
         print_info "预测 ${pair}（所有周期）..."
@@ -237,7 +237,7 @@ analyze_all_pairs() {
     fi
 
     # 分析所有货币对
-    print_info "运行综合分析（6个货币对）..."
+    print_info "运行综合分析（7个货币对）..."
 
     if python3 -m comprehensive_analysis \
         --data_file "$DATA_FILE" \
