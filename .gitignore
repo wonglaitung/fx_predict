@@ -41,3 +41,6 @@ data/raw/
 
 # Excel temporary files
 ~$*
+
+# ML Model files
+data/models/*.pkl
