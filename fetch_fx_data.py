@@ -29,7 +29,8 @@ PAIR_TICKERS = {
     'AUD': 'AUDUSD=X',
     'GBP': 'GBPUSD=X',
     'CAD': 'USDCAD=X',
-    'NZD': 'NZDUSD=X'
+    'NZD': 'NZDUSD=X',
+    'HKD': 'HKDCNY=X'
 }
 
 # 货币对中文名称
@@ -39,7 +40,8 @@ PAIR_NAMES = {
     'AUD': 'AUD/USD',
     'GBP': 'GBP/USD',
     'CAD': 'USD/CAD',
-    'NZD': 'NZD/USD'
+    'NZD': 'NZD/USD',
+    'HKD': 'HKD/CNY'
 }
 
 
