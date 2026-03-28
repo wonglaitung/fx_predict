@@ -600,6 +600,26 @@ app.post('/api/v1/upload', upload.single('file'), (req, res) => {
     const { filename, path: filePath, size } = req.file;
     logInfo(`File uploaded: ${filename}, size: ${size} bytes, path: ${filePath}`);
 
+    // Update config.py with new data file path
+    try {
+      const configPath = path.resolve(process.env.CONFIG_PATH || '../config.py');
+      let configContent = fs.readFileSync(configPath, 'utf8');
+      
+      // Replace data_file configuration
+      const newFilePath = `data/raw/${filename}`;
+      const dataFileRegex = /'data_file':\s*'[^']*'/;
+      configContent = configContent.replace(
+        dataFileRegex,
+        `'data_file': '${newFilePath}'`
+      );
+      
+      fs.writeFileSync(configPath, configContent, 'utf8');
+      logInfo(`Config updated: data_file = ${newFilePath}`);
+    } catch (configError) {
+      logError(`Failed to update config.py: ${configError.message}`);
+      // Continue even if config update fails
+    }
+
     // Clear cache to force reload with new data
     dataCache.clear();
     dataCache.clearByPattern('strategy_indicators:');

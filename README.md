@@ -1,4 +1,4 @@
-# FX Predict - 外汇智能分析系统
+# <img src="assets/icon.svg" width="40" height="48" alt="FX Predict" style="vertical-align: middle; margin-right: 10px;"> FX Predict - 外汇智能分析系统
 
 基于机器学习和人机协作的多周期外汇汇率预测系统，整合技术指标分析、CatBoost 预测模型和大模型解释，为外汇交易提供智能化建议。
 
@@ -29,13 +29,13 @@
 
 ### 主界面
 
-![Dashboard主界面](resources/dashboard_1.jpg)
+![Dashboard主界面](assets/dashboard_1.jpg)
 
 Dashboard 主界面展示所有货币对的实时汇率、预测方向和置信度。点击任意货币对卡片可查看详细的大模型分析报告。
 
 ### 技术指标与交易策略
 
-![技术指标与交易策略](resources/dashboard_2.jpg)
+![技术指标与交易策略](assets/dashboard_2.jpg)
 
 技术指标图表展示价格走势、均线系统和技术指标数值。交易策略表格提供各周期的入场价、止损、止盈建议。
 
