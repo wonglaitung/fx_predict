@@ -273,7 +273,7 @@ function renderIndicatorValueChart(indicators, pair) {
       label: 'MACD',
       data: Array.from({ length: 30 }, (_, i) => {
         const variation = (Math.random() - 0.5) * 0.002;
-        return (baseMACD + variation).toFixed(6);
+        return (baseMACD + variation).toFixed(4);
       }),
       backgroundColor: '#3b82f6',
       yAxisID: 'y1'
@@ -287,7 +287,7 @@ function renderIndicatorValueChart(indicators, pair) {
       label: 'ATR14',
       data: Array.from({ length: 30 }, (_, i) => {
         const variation = (Math.random() - 0.5) * 0.01;
-        return Math.max(0, baseATR + variation).toFixed(6);
+        return Math.max(0, baseATR + variation).toFixed(4);
       }),
       backgroundColor: '#f59e0b',
       yAxisID: 'y1'

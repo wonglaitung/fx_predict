@@ -516,14 +516,14 @@ function extractKeyIndicators(indicators, strategy) {
   
   return {
     support_resistance: {
-      bb_upper: bbUpper,
-      bb_middle: bbMiddle,
-      bb_lower: bbLower,
+      bb_upper: bbUpper.toFixed(4),
+      bb_middle: bbMiddle.toFixed(4),
+      bb_lower: bbLower.toFixed(4),
       price_position: pricePosition,
       interpretation: `价格${pricePosition === '中轨附近' ? '在中轨附近' : pricePosition === '上轨之上' ? '突破上轨，可能回调' : '跌破下轨，可能反弹'}，布林带宽度正常。`
     },
     trend_strength: {
-      adx: adx.toFixed(2),
+      adx: adx.toFixed(4),
       trend: trendStatus,
       ma_alignment: marketEnvironment.MA_Alignment || 0,
       interpretation: trendStatus === '强势' ? 'ADX显示趋势强劲，适合趋势交易。' : 
@@ -531,10 +531,10 @@ function extractKeyIndicators(indicators, strategy) {
                      'ADX显示无明显趋势，建议观望。'
     },
     momentum: {
-      rsi14: rsi14.toFixed(1),
+      rsi14: rsi14.toFixed(4),
       rsi_status: rsiStatus,
-      macd: trend.MACD?.toFixed(6) || 0,
-      macd_signal: trend.MACD_Signal?.toFixed(6) || 0,
+      macd: trend.MACD?.toFixed(4) || 0,
+      macd_signal: trend.MACD_Signal?.toFixed(4) || 0,
       interpretation: rsiStatus === '超买' ? 'RSI超买，可能回调。' :
                      rsiStatus === '超卖' ? 'RSI超卖，可能反弹。' :
                      'RSI中性，等待更明确信号。'
@@ -552,9 +552,9 @@ function extractKeyIndicators(indicators, strategy) {
       interpretation: `${trend.SMA120 > currentPrice ? 'SMA120在上形成阻力' : 'SMA120在下形成支撑'}，短期均线${trend.SMA5 > trend.SMA20 ? '多头排列' : '空头排列'}。`
     },
     signals: {
-      williams_r: williamsR.toFixed(1),
+      williams_r: williamsR.toFixed(4),
       status: williamsStatus,
-      cci20: momentum.CCI20?.toFixed(1) || 0,
+      cci20: momentum.CCI20?.toFixed(4) || 0,
       interpretation: williamsStatus === '超买' ? 'Williams%R超买信号。' :
                      williamsStatus === '超卖' ? 'Williams%R超卖信号。' :
                      'Williams%R中性，无明确信号。'

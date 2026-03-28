@@ -71,7 +71,7 @@ function renderOverviewCards(pairs) {
     
     // Format probability and confidence for each horizon
     const formatPredictionInfo = (pred) => {
-      const probabilityPercent = (pred.probability * 100).toFixed(1) + '%';
+      const probabilityPercent = (pred.probability * 100).toFixed(4) + '%';
       const displayConfidence = confidenceMap[pred.confidence] || 'unknown';
       return `${probabilityPercent} (${displayConfidence})`;
     };
@@ -398,10 +398,16 @@ function renderIndicatorCard(title, indicators) {
     .map(([key, value]) => {
       const label = formatIndicatorLabel(key);
       
+      // Format numeric values to 4 decimal places
+      let formattedValue = value;
+      if (typeof value === 'number') {
+        formattedValue = value.toFixed(4);
+      }
+      
       return `
         <div class="indicator-row">
           <span class="label">${label}</span>
-          <span class="value">${value}</span>
+          <span class="value">${formattedValue}</span>
         </div>
       `;
     }).join('');
