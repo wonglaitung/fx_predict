@@ -135,7 +135,8 @@ class JSONFormatter:
             'AUD': '澳元/美元',
             'GBP': '英镑/美元',
             'CAD': '美元/加元',
-            'NZD': '新西兰元/美元'
+            'NZD': '新西兰元/美元',
+            'HKD': '港币/人民币'
         }
         return pair_names.get(pair, pair)
 
