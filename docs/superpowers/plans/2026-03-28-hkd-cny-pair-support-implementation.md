@@ -15,6 +15,7 @@
 ### 修改的文件
 - `config.py` - 货币对配置字典
 - `fetch_fx_data.py` - Yahoo Finance ticker 映射
+- `dashboard/server.js` - Dashboard 货币对列表（validPairs）
 
 ### 扩展测试的文件
 - `tests/test_excel_loader.py` - 添加 HKD 数据加载测试
@@ -25,7 +26,6 @@
 - `data_services/excel_loader.py` - 已支持任意工作表和优雅降级
 - `ml_services/fx_trading_model.py` - 自动遍历 CURRENCY_PAIRS
 - `comprehensive_analysis.py` - 自动处理 HKD 分析
-- `dashboard/server.js` - API 自动返回 HKD 数据
 
 ---
 
@@ -135,7 +135,14 @@ CURRENCY_PAIRS = {
 
 运行配置验证：
 ```bash
-python3 -c "import config; config.validate_config()"
+python3 -c "
+import config
+if config.validate_config():
+    print('配置验证通过')
+else:
+    print('配置验证失败')
+    exit(1)
+"
 ```
 
 **预期输出：**
@@ -229,6 +236,70 @@ True
 ```bash
 git add fetch_fx_data.py
 git commit -m "feat: add HKD ticker to Yahoo Finance data fetcher"
+```
+
+---
+
+### Task 3.1: 更新 Dashboard 货币对列表
+
+**文件：**
+- Modify: `dashboard/server.js` (4 处 validPairs 定义)
+
+**目的：** 更新 Dashboard 中的硬编码货币对列表，使其包含 HKD
+
+- [ ] **Step 1: 读取 server.js 验证 validPairs 位置**
+
+```bash
+grep -n "const validPairs = " dashboard/server.js
+```
+
+预期输出：显示 4 个 validPairs 定义的位置（第 74、144、214、652 行附近）
+
+- [ ] **Step 2: 更新所有 validPairs 定义**
+
+将所有 `const validPairs = ['EUR', 'JPY', 'AUD', 'GBP', 'CAD', 'NZD'];` 替换为：
+```javascript
+const validPairs = ['EUR', 'JPY', 'AUD', 'GBP', 'CAD', 'NZD', 'HKD'];
+```
+
+**使用 sed 批量替换：**
+```bash
+sed -i "s/const validPairs = \['EUR', 'JPY', 'AUD', 'GBP', 'CAD', 'NZD'\];/const validPairs = ['EUR', 'JPY', 'AUD', 'GBP', 'CAD', 'NZD', 'HKD'];/g" dashboard/server.js
+```
+
+- [ ] **Step 3: 验证修改**
+
+```bash
+grep -A 1 "const validPairs = " dashboard/server.js
+```
+
+预期输出：所有 validPairs 都包含 'HKD'
+
+- [ ] **Step 4: 重启 Dashboard 验证**
+
+```bash
+cd dashboard
+npm start &
+# 等待服务器启动
+sleep 3
+# 访问 API 验证
+curl -s http://localhost:3000/api/v1/pairs | python3 -c "import sys,json; data=json.load(sys.stdin); print(f\"货币对数量: {len(data['pairs'])}\"); print(f\"包含 HKD: {any(p['pair']=='HKD' for p in data['pairs'])}\")"
+# 停止服务器
+pkill -f "node.*server.js"
+cd ..
+```
+
+**预期输出：**
+```
+货币对数量: 7
+包含 HKD: True
+```
+
+- [ ] **Step 5: 提交修改**
+
+```bash
+git add dashboard/server.js
+git commit -m "feat: add HKD to Dashboard validPairs list"
 ```
 
 ---
@@ -363,6 +434,53 @@ with open('data/predictions/HKD_multi_horizon_*.json', 'r') as f:
 
 ---
 
+### Task 5.5: 性能影响评估
+
+**目的：** 验证添加 HKD 后的性能影响是否在可接受范围内
+
+**无文件修改**
+
+- [ ] **Step 1: 记录训练时间**
+
+```bash
+time ./run_full_pipeline.sh
+```
+
+记录总训练时间。
+
+- [ ] **Step 2: 对比基线性能**
+
+如果之前有记录 6 个货币对的训练时间，对比：
+- 新训练时间 / 旧训练时间 ≈ 7/6 = 116.7%（可接受）
+- 如果超过 120%，需要调查原因
+
+- [ ] **Step 3: 测试 Dashboard 性能**
+
+```bash
+cd dashboard
+npm start &
+# 等待服务器启动
+sleep 3
+# 测试 API 响应时间
+time curl -s http://localhost:3000/api/v1/pairs > /dev/null
+# 停止服务器
+pkill -f "node.*server.js"
+cd ..
+```
+
+**预期结果：**
+- API 响应时间应该 < 100ms
+- 页面加载时间应该 < 1s
+
+- [ ] **Step 4: 记录性能指标（手动）**
+
+记录以下指标到文档或日志：
+- 总训练时间
+- API 平均响应时间
+- Dashboard 加载时间
+
+---
+
 ### Task 6: 添加 HKD 数据加载测试
 
 **文件：**
@@ -380,45 +498,63 @@ grep -n "def test_" tests/test_excel_loader.py | tail -5
 在 `tests/test_excel_loader.py` 文件末尾添加以下测试：
 
 ```python
+import glob
+import os
+
 def test_load_hkd_pair_success():
     """测试成功加载 HKD 工作表"""
+    # 动态查找最新的 Yahoo Finance 数据文件
+    data_files = glob.glob('data/raw/FXRate_*_yahoo.xlsx')
+    if not data_files:
+        pytest.skip("未找到 Yahoo Finance 数据文件")
+    latest_file = max(data_files, key=os.path.getctime)
+    
     loader = FXDataLoader()
-    df = loader.load_pair('HKD', 'data/raw/FXRate_20260328_yahoo.xlsx')
+    df = loader.load_pair('HKD', latest_file)
     assert len(df) > 0, "HKD 数据量应该大于 0"
     assert 'Date' in df.columns, "应该包含 Date 列"
     assert 'Close' in df.columns, "应该包含 Close 列"
 
-def test_load_hkd_pair_missing_sheet():
-    """测试 HKD 工作表不存在时抛出 ValueError"""
+def test_load_all_pairs_missing_hkd():
+    """测试缺少 HKD 工作表时记录警告并跳过"""
     import tempfile
-    import os
+    import pandas as pd
+    
+    # 动态查找最新的 Yahoo Finance 数据文件
+    data_files = glob.glob('data/raw/FXRate_*_yahoo.xlsx')
+    if not data_files:
+        pytest.skip("未找到 Yahoo Finance 数据文件")
+    latest_file = max(data_files, key=os.path.getctime)
+    
+    loader = FXDataLoader()
     
     # 创建一个不含 HKD 工作表的临时文件
-    loader = FXDataLoader()
     with tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False) as tmp:
         # 复制 EUR 工作表到临时文件，不含 HKD
-        df_eur = loader.load_pair('EUR', 'data/raw/FXRate_20260328_yahoo.xlsx')
+        df_eur = loader.load_pair('EUR', latest_file)
         df_eur.to_excel(tmp.name, sheet_name='EUR', index=False)
         tmp_path = tmp.name
     
     try:
-        with pytest.raises(ValueError, match="工作表不存在: HKD"):
-            loader.load_pair('HKD', tmp_path)
+        result = loader.load_all_pairs(tmp_path)
+        assert 'HKD' not in result
+        assert len(result) == 1  # 只有 EUR
+        assert 'EUR' in result
     finally:
         os.unlink(tmp_path)
 ```
 
-- [ ] **Step 3: 运行测试验证失败**
+- [ ] **Step 3: 运行测试**
 
 ```bash
 pytest tests/test_excel_loader.py::test_load_hkd_pair_success -v
-pytest tests/test_excel_loader.py::test_load_hkd_pair_missing_sheet -v
+pytest tests/test_excel_loader.py::test_load_all_pairs_missing_hkd -v
 ```
 
 **预期输出：**
 ```
 PASSED test_load_hkd_pair_success
-PASSED test_load_hkd_pair_missing_sheet
+PASSED test_load_all_pairs_missing_hkd
 ```
 
 - [ ] **Step 4: 提交测试**
@@ -534,11 +670,12 @@ test('GET /api/v1/pairs includes HKD', async () => {
   const response = await request(app).get('/api/v1/pairs');
   
   expect(response.status).toBe(200);
-  expect(Array.isArray(response.body)).toBe(true);
-  expect(response.body).toHaveLength(7); // 6 个原有 + HKD
+  expect(response.body).toHaveProperty('pairs');
+  expect(Array.isArray(response.body.pairs)).toBe(true);
+  expect(response.body.pairs).toHaveLength(7); // 6 个原有 + HKD
   
   // 验证 HKD 存在
-  const hkdPair = response.body.find(p => p.pair === 'HKD');
+  const hkdPair = response.body.pairs.find(p => p.pair === 'HKD');
   expect(hkdPair).toBeDefined();
   expect(hkdPair.pair_name).toBe('港币/人民币');
 });
@@ -744,6 +881,107 @@ rm data/raw/test_no_hkd.xlsx
 
 ---
 
+### Task 11.5: 验证配置一致性
+
+**目的：** 确保 Python 和 Dashboard 的货币对配置一致
+
+**无文件修改**
+
+- [ ] **Step 1: 提取 Python 配置**
+
+```bash
+python3 -c "
+import config
+import json
+pairs = config.DATA_CONFIG['supported_pairs']
+print(json.dumps(sorted(pairs)))
+"
+```
+
+**预期输出：**
+```
+["AUD", "CAD", "EUR", "GBP", "HKD", "JPY", "NZD"]
+```
+
+- [ ] **Step 2: 提取 Dashboard 配置**
+
+```bash
+grep "const validPairs = " dashboard/server.js | \
+  head -1 | \
+  sed "s/const validPairs = \(.*\);/\1/" | \
+  tr -d "'[] " | \
+  tr ',' '\n' | \
+  sort | \
+  tr '\n' ' '
+```
+
+**预期输出：**
+```
+AUD CAD EUR GBP HKD JPY NZD
+```
+
+- [ ] **Step 3: 手动验证两个列表一致**
+
+如果列表不一致，需要修复配置。
+
+- [ ] **Step 4: 创建自动化验证脚本（可选）**
+
+创建 `scripts/validate_config.py`：
+
+```python
+#!/usr/bin/env python3
+"""验证 Python 和 Dashboard 配置一致性"""
+import re
+import config
+
+# 读取 Dashboard 的 validPairs
+with open('dashboard/server.js', 'r') as f:
+    content = f.read()
+
+# 提取第一个 validPairs 定义
+match = re.search(r"const validPairs = \[(.*?)\];", content, re.DOTALL)
+if match:
+    dashboard_pairs = [p.strip().strip("'\"") for p in match.group(1).split(',')]
+else:
+    print("ERROR: 未找到 Dashboard 的 validPairs 定义")
+    exit(1)
+
+python_pairs = config.DATA_CONFIG['supported_pairs']
+
+print(f"Python 配置: {sorted(python_pairs)}")
+print(f"Dashboard 配置: {sorted(dashboard_pairs)}")
+
+if set(python_pairs) == set(dashboard_pairs):
+    print("✅ 配置一致")
+    exit(0)
+else:
+    print("❌ 配置不一致")
+    print(f"仅 Python: {set(python_pairs) - set(dashboard_pairs)}")
+    print(f"仅 Dashboard: {set(dashboard_pairs) - set(python_pairs)}")
+    exit(1)
+```
+
+运行验证：
+```bash
+python3 scripts/validate_config.py
+```
+
+**预期输出：**
+```
+Python 配置: ['AUD', 'CAD', 'EUR', 'GBP', 'HKD', 'JPY', 'NZD']
+Dashboard 配置: ['AUD', 'CAD', 'EUR', 'GBP', 'HKD', 'JPY', 'NZD']
+✅ 配置一致
+```
+
+- [ ] **Step 5: 如果创建验证脚本，添加到 git**
+
+```bash
+git add scripts/validate_config.py
+git commit -m "feat: add configuration validation script"
+```
+
+---
+
 ### Task 12: 更新文档和提交所有更改
 
 **文件：**
@@ -864,20 +1102,91 @@ git log --oneline -10
 
 ---
 
+## 回滚计划
+
+### 场景 1: Yahoo Finance ticker 不可用
+
+如果 Task 1 验证失败，无需执行回滚，因为还没有修改代码。
+
+### 场景 2: Dashboard 显示异常
+
+如果在 Task 10 发现 Dashboard 显示异常：
+
+```bash
+# 回滚 Dashboard 修改
+git checkout HEAD~1 dashboard/server.js
+cd dashboard
+npm start
+# 验证恢复到 6 个货币对
+```
+
+### 场景 3: 模型训练失败
+
+如果在 Task 5 训练失败：
+
+```bash
+# 删除失败的 HKD 模型文件
+rm -f data/models/HKD_*.pkl
+
+# 回滚配置修改
+git checkout HEAD~1 config.py fetch_fx_data.py
+
+# 使用旧数据重新训练
+./run_full_pipeline.sh
+```
+
+### 场景 4: 完整回滚
+
+如果需要完全回滚到实施前状态：
+
+```bash
+# 查看提交历史
+git log --oneline -10
+
+# 回滚到实施前的提交（假设实施前的 commit hash 是 xxx）
+git reset --hard xxx
+
+# 删除 HKD 相关文件
+rm -f data/models/HKD_*.pkl
+rm -f data/predictions/HKD_*.json
+
+# 重新运行完整流程
+./run_full_pipeline.sh
+```
+
+### 场景 5: 部分回滚
+
+如果需要保留部分功能（例如数据获取功能）但回滚其他部分：
+
+```bash
+# 回滚到特定提交（保留 Task 1-4 的修改）
+git reset --hard <commit-hash-after-task-4>
+
+# 删除模型和预测文件
+rm -f data/models/HKD_*.pkl
+rm -f data/predictions/HKD_*.json
+```
+
+---
+
 ## 总结
 
-本实施计划采用 TDD 方法，分 12 个任务逐步实现 HKD/CNY 货币对支持：
+本实施计划采用 TDD 方法，分 15 个任务逐步实现 HKD/CNY 货币对支持：
 
 1. 验证 Yahoo Finance ticker 可用性
-2. 修改配置文件（config.py, fetch_fx_data.py）
-3. 获取并验证数据
-4. 训练模型并生成预测
-5. 添加单元测试
-6. 添加集成测试
-7. 添加 Dashboard 测试
-8. 运行完整测试套件
-9. 手动验证 Dashboard
-10. 测试数据缺失场景
-11. 更新文档
+2. 修改 config.py 添加 HKD 配置
+3. 修改 fetch_fx_data.py 添加 HKD ticker
+4. 更新 Dashboard 的 validPairs 列表
+5. 获取并验证数据
+6. 运行完整流程训练 HKD 模型
+7. 性能影响评估
+8. 添加 HKD 数据加载测试
+9. 添加 HKD 端到端集成测试
+10. 添加 Dashboard API 测试
+11. 运行所有测试验证无回归
+12. 启动 Dashboard 验证 HKD 显示
+13. 测试数据缺失场景
+14. 验证配置一致性
+15. 更新文档和提交所有更改
 
 每个任务都包含明确的验证步骤和预期输出，确保实现质量。
