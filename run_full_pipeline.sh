@@ -211,7 +211,6 @@ predict_all_pairs() {
             --pair "$pair" \
             --all-horizons \
             --data_file "$DATA_FILE"; then
-            --all-horizons; then
             print_success "${pair} 所有周期预测完成"
         else
             print_error "${pair} 预测失败"
