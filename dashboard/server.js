@@ -71,7 +71,7 @@ class DataLoader {
   }
 
   loadAllPairs() {
-    const validPairs = ['EUR', 'JPY', 'AUD', 'GBP', 'CAD', 'NZD'];
+    const validPairs = ['EUR', 'JPY', 'AUD', 'GBP', 'CAD', 'NZD', 'HKD'];
     const pairs = [];
     const seenPairs = new Set();
 
@@ -141,7 +141,7 @@ class DataLoader {
   }
 
   loadPair(pair) {
-    const validPairs = ['EUR', 'JPY', 'AUD', 'GBP', 'CAD', 'NZD'];
+    const validPairs = ['EUR', 'JPY', 'AUD', 'GBP', 'CAD', 'NZD', 'HKD'];
     if (!validPairs.includes(pair)) {
       throw new Error('Invalid pair code');
     }
@@ -211,7 +211,7 @@ class DataLoader {
   }
 
   loadPairRaw(pair) {
-    const validPairs = ['EUR', 'JPY', 'AUD', 'GBP', 'CAD', 'NZD'];
+    const validPairs = ['EUR', 'JPY', 'AUD', 'GBP', 'CAD', 'NZD', 'HKD'];
     if (!validPairs.includes(pair)) {
       throw new Error('Invalid pair code');
     }
@@ -649,7 +649,7 @@ app.post('/api/v1/upload', upload.single('file'), (req, res) => {
 app.get('/api/v1/strategies/:pair/:horizon/indicators', (req, res) => {
   try {
     const { pair, horizon } = req.params;
-    const validPairs = ['EUR', 'JPY', 'AUD', 'GBP', 'CAD', 'NZD'];
+    const validPairs = ['EUR', 'JPY', 'AUD', 'GBP', 'CAD', 'NZD', 'HKD'];
     const validHorizons = ['1', '5', '20'];
     
     // Validate parameters
