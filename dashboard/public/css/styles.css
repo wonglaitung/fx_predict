@@ -88,7 +88,7 @@ body {
   to { transform: rotate(360deg); }
 }
 
-.last-update, .auto-refresh, .last-refresh {
+.last-update, .refresh-countdown {
   font-size: 0.95rem;
   color: var(--text-primary);
   font-weight: 600;

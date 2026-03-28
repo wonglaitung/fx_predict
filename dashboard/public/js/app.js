@@ -1,5 +1,7 @@
 // Main application logic
 let autoRefreshInterval;
+let countdownInterval;
+let remainingSeconds = 5 * 60; // 5 minutes in seconds
 const AUTO_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
 // Fetch data from API
@@ -48,10 +50,9 @@ async function refreshData() {
       document.getElementById('lastUpdate').textContent = dataDate;
     }
     
-    // Update last refresh time (current time)
-    const now = new Date();
-    const timeString = now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    document.getElementById('lastRefresh').textContent = `最后刷新: ${timeString}`;
+    // Reset countdown timer
+    remainingSeconds = 5 * 60;
+    updateCountdown();
     
   } catch (error) {
     console.error('Error refreshing data:', error);
@@ -100,31 +101,51 @@ function handlePairChange() {
   renderIndicatorCharts(selector.value);
 }
 
-// Start auto-refresh
-function startAutoRefresh() {
-  // Clear existing interval
-  if (autoRefreshInterval) {
-    clearInterval(autoRefreshInterval);
+// Update countdown display
+function updateCountdown() {
+  const countdownElement = document.getElementById('refreshCountdown');
+  if (countdownElement) {
+    countdownElement.textContent = `${remainingSeconds} 秒后刷新`;
   }
-  
-  // Set new interval
-  autoRefreshInterval = setInterval(() => {
-    refreshData();
-  }, AUTO_REFRESH_INTERVAL);
-  
-  // Show auto-refresh indicator
-  document.getElementById('autoRefresh').textContent = 'Auto-refresh: 5min';
 }
 
-// Stop auto-refresh
-function stopAutoRefresh() {
+// Start countdown timer
+function startCountdown() {
+  // Clear existing intervals
+  if (countdownInterval) {
+    clearInterval(countdownInterval);
+  }
   if (autoRefreshInterval) {
     clearInterval(autoRefreshInterval);
     autoRefreshInterval = null;
   }
   
-  // Hide auto-refresh indicator
-  document.getElementById('autoRefresh').textContent = '';
+  // Start countdown timer (every second)
+  countdownInterval = setInterval(() => {
+    remainingSeconds--;
+    if (remainingSeconds <= 0) {
+      // Time to refresh
+      refreshData();
+    }
+    updateCountdown();
+  }, 1000);
+}
+
+// Stop countdown timer
+function stopCountdown() {
+  if (countdownInterval) {
+    clearInterval(countdownInterval);
+    countdownInterval = null;
+  }
+  if (autoRefreshInterval) {
+    clearInterval(autoRefreshInterval);
+    autoRefreshInterval = null;
+  }
+  
+  const countdownElement = document.getElementById('refreshCountdown');
+  if (countdownElement) {
+    countdownElement.textContent = '';
+  }
 }
 
 // Initialize application
@@ -156,8 +177,8 @@ async function init() {
   // Load initial data
   await refreshData();
   
-  // Start auto-refresh
-  startAutoRefresh();
+  // Start countdown
+  startCountdown();
 }
 
 // Close analysis sidebar
@@ -176,11 +197,11 @@ if (document.readyState === 'loading') {
   init();
 }
 
-// Stop auto-refresh when page is hidden
+// Stop countdown when page is hidden
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
-    stopAutoRefresh();
+    stopCountdown();
   } else {
-    startAutoRefresh();
+    startCountdown();
   }
 });
