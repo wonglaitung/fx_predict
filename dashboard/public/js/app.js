@@ -20,6 +20,7 @@ async function fetchAPI(endpoint) {
 
 // Refresh all data
 async function refreshData() {
+  console.log('🔄 开始刷新数据...', new Date().toLocaleTimeString());
   try {
     // Fetch all data in parallel
     const [pairsData, strategiesData, riskData] = await Promise.all([
