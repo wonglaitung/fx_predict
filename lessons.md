@@ -1089,3 +1089,155 @@ handler = RotatingFileHandler('fx_predict.log', maxBytes=10*1024*1024, backupCou
     - 适合作为主要数据源
     - yfinance 库易用
     - 支持多种时间周期（日线、周线、月线）
+
+## 最后更新
+
+- 日期：2026-03-30（第十六次更新 - Dashboard 文件上传功能）
+- 作者：iFlow CLI
+- 版本：16.0 (Dashboard 文件上传功能 + 用户体验优化)
+- 更新内容：
+  - **用户体验的重要性**：
+    - 清晰的视觉反馈让用户了解系统状态
+    - 进度条显示上传进度，减少用户等待焦虑
+    - 成功/失败使用不同颜色，一目了然
+    - 按钮状态变化（禁用/启用）引导用户操作
+    - 示例：上传中显示蓝色加载状态，成功显示绿色，失败显示红色
+  
+  - **状态管理的必要性**：
+    - 复杂的交互需要维护多个状态
+    - 按钮状态：根据文件选择和上传进度变化
+    - 上传状态：idle → uploading → success/error → idle
+    - 进度状态：显示 0-100% 的上传进度
+    - 错误状态：记录和显示各种错误信息
+    - 示例：selectedFile 变量跟踪当前选择的文件
+  
+  - **文件验证的重要性**：
+    - 前端验证可以减少无效请求
+    - 文件格式验证：只接受 .xlsx 文件
+    - 文件大小验证：不超过 10MB
+    - 验证失败立即提示用户，不发送请求
+    - 减少服务器负担和网络流量
+    - 示例：`if (!file.name.endsWith('.xlsx')) { showUploadStatus('error', '只接受 .xlsx 格式的文件'); }`
+  
+  - **进度反馈的价值**：
+    - 用户需要了解上传进度
+    - 模拟进度动画让用户感知系统在工作
+    - 进度百分比具体显示
+    - 完成后自动隐藏进度条
+    - 示例：`setInterval(() => { progress += 10; showUploadProgress(progress); }, 200);`
+  
+  - **自动化的优势**：
+    - 上传成功后自动刷新 Dashboard
+    - 用户无需手动刷新页面
+    - 减少用户操作步骤
+    - 提高系统易用性
+    - 示例：`setTimeout(async () => { await refreshData(); }, 1000);`
+  
+  - **错误处理的完整性**：
+    - 处理各种可能的错误情况
+    - 文件格式错误
+    - 文件大小超限
+    - 上传失败（网络错误、服务器错误）
+    - 未选择文件就点击上传
+    - 清晰的错误信息帮助用户理解问题
+    - 示例：`showUploadStatus('error', '文件大小不能超过 10MB');`
+  
+  - **CSS 样式的统一性**：
+    - 新功能应该与现有风格保持一致
+    - 使用相同的颜色变量（var(--color-info), var(--color-success), var(--color-danger)）
+    - 使用相同的圆角、边框、字体大小
+    - 保持整体视觉一致性
+    - 示例：`.upload-btn { background-color: var(--color-info); }`
+  
+  - **响应式设计的重要性**：
+    - 移动端体验同样重要
+    - 小屏幕上按钮全宽，垂直排列
+    - 媒体查询适配不同屏幕尺寸
+    - 触摸友好的按钮大小
+    - 示例：`@media (max-width: 768px) { .upload-container { flex-direction: column; } }`
+  
+  - **现有接口的复用**：
+    - 使用已有的 API 接口减少开发工作
+    - `/api/v1/upload` 接口已实现文件上传功能
+    - 前端只需要调用接口，无需修改后端
+    - 减少重复代码
+    - 示例：`fetch('/api/v1/upload', { method: 'POST', body: formData });`
+  
+  - **代码组织的清晰性**：
+    - HTML、CSS、JavaScript 分离
+    - 功能模块化，易于维护
+    - 事件监听器集中管理
+    - 辅助函数封装复用逻辑
+    - 示例：`showUploadStatus()`, `hideUploadStatus()`, `showUploadProgress()`
+  
+  - **按钮状态的设计**：
+    - 按钮应该有明确的状态指示
+    - 未选择文件：上传按钮禁用（灰色）
+    - 已选择文件：上传按钮启用（蓝色）
+    - 上传中：上传按钮禁用（灰色）
+    - 上传后：重置为初始状态
+    - 示例：`submitUploadBtn.disabled = !selectedFile;`
+  
+  - **隐藏原生文件输入框**：
+    - 使用自定义按钮替代原生文件输入框
+    - 原生文件输入框隐藏（display: none）
+    - 通过 JavaScript 触发文件选择
+    - 提供更好的视觉体验
+    - 示例：`uploadBtn.addEventListener('click', () => { fileInput.click(); });`
+  
+  - **表单数据的使用**：
+    - 使用 FormData 对象上传文件
+    - FormData 可以处理二进制数据
+    - 自动设置正确的 Content-Type
+    - 简化文件上传代码
+    - 示例：`const formData = new FormData(); formData.append('file', selectedFile);`
+  
+  - **异步操作的处理**：
+    - 文件上传是异步操作
+    - 使用 async/await 处理 Promise
+    - 正确处理成功和错误情况
+    - 避免阻塞主线程
+    - 示例：`const response = await fetch('/api/v1/upload', { method: 'POST', body: formData });`
+  
+  - **定时器的管理**：
+    - 进度动画使用 setInterval
+    - 上传完成后清除定时器
+    - 避免内存泄漏
+    - 示例：`clearInterval(progressInterval);`
+  
+  - **延迟执行的使用**：
+    - 使用 setTimeout 延迟执行某些操作
+    - 进度条完成后延迟隐藏
+    - 上传成功后延迟刷新数据
+    - 给用户足够时间看到反馈
+    - 示例：`setTimeout(() => { hideUploadProgress(); }, 2000);`
+  
+  - **DOM 元素的获取**：
+    - 使用 document.getElementById 获取元素
+    - 在页面加载完成后初始化
+    - 避免访问不存在的元素
+    - 示例：`const fileInput = document.getElementById('fileInput');`
+  
+  - **事件监听器的添加**：
+    - 为交互元素添加事件监听器
+    - 处理用户操作
+    - 示例：`uploadBtn.addEventListener('click', () => { fileInput.click(); });`
+  
+  - **CSS 过渡效果的使用**：
+    - 进度条填充使用过渡效果
+    - 平滑的动画提升用户体验
+    - 示例：`transition: width 0.3s ease;`
+  
+  - **CSS 变量的优势**：
+    - 使用 CSS 变量管理颜色和样式
+    - 便于统一修改主题
+    - 提高代码可维护性
+    - 示例：`background-color: var(--color-info);`
+  
+  - **Git 提交的规范**：
+    - 使用 Conventional Commits 规范
+    - 清晰的提交信息
+    - feat: 新功能
+    - fix: 修复
+    - refactor: 重构
+    - 示例：`feat: add file upload functionality to dashboard`
