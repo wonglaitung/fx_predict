@@ -354,11 +354,6 @@ docker-compose exec fx-predict nano /app/config.py
   docker-compose up -d
   ```
 
-**在 Dashboard 中修改配置：**
-- Dashboard 的文件上传功能可以更新 config.py
-- 上传后的 config.py 会自动同步到宿主机
-- 下次运行时自动使用新配置
-
 ### 内存不足
 
 ```bash
