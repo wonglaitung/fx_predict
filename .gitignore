@@ -44,3 +44,5 @@ data/raw/
 
 # ML Model files
 data/models/*.pkl
+*.tar.gz
+dashboard/docker/*.tar.gz
