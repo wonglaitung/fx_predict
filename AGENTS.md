@@ -976,6 +976,91 @@ logging.basicConfig(
 }
 ```
 
+## 开发最佳实践
+
+### 代码修改流程
+
+为了避免运行时错误和提高代码质量，所有代码修改都应该遵循以下流程：
+
+**1. Python 代码修改流程**
+
+```bash
+# 步骤 1: 语法检查
+python3 -m py_compile comprehensive_analysis.py
+
+# 步骤 2: 模块导入测试
+python3 -c "import comprehensive_analysis; print('导入成功')"
+
+# 步骤 3: 运行相关测试
+pytest tests/test_comprehensive_analysis.py -v
+
+# 步骤 4: 提交代码
+git add comprehensive_analysis.py
+git commit -m "描述修改内容"
+```
+
+**2. JavaScript 代码修改流程**
+
+```bash
+# 步骤 1: 语法检查
+node -c dashboard/server.js
+
+# 步骤 2: 启动服务器测试
+cd dashboard && timeout 5 npm start
+
+# 步骤 3: 测试 API 端点
+curl http://localhost:3000/health
+
+# 步骤 4: 提交代码
+git add dashboard/server.js
+git commit -m "描述修改内容"
+```
+
+### 常见错误和预防
+
+**错误 1: 缺少模块导入**
+
+```python
+# 错误示例
+parser.add_argument('--data_file', default=os.getenv('DATA_FILE'))
+# NameError: name 'os' is not defined
+
+# 正确做法
+import os  # 添加在文件顶部
+parser.add_argument('--data_file', default=os.getenv('DATA_FILE'))
+```
+
+**预防方法**：
+- 语法检查：`python3 -m py_compile filename.py`
+- 导入测试：实际导入模块验证
+
+**错误 2: 语法错误**
+
+```javascript
+// 错误示例：多余的右大括号
+app.get('/api/test', (req, res) => {
+  res.json({ status: 'ok' });
+}
+});  // 多余的右大括号
+
+// SyntaxError: Unexpected token '}'
+```
+
+**预防方法**：
+- 语法检查：`node -c filename.js`
+- 使用代码编辑器的实时语法检查
+
+### 检查清单
+
+提交代码前，请确保完成以下检查：
+
+- [ ] Python 文件通过 `python3 -m py_compile` 语法检查
+- [ ] JavaScript 文件通过 `node -c` 语法检查
+- [ ] 模块可以正常导入
+- [ ] 相关测试通过
+- [ ] Git 提交信息清晰准确
+- [ ] 文档（如需要）已同步更新
+
 ## 常见问题
 
 ### 1. 如何更新数据文件
