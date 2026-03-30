@@ -471,11 +471,10 @@ ML 预测：{'上涨' if ml_pred == 1 else '下跌'}，概率 {ml_prob:.2%}，�
 if __name__ == "__main__":
     import argparse
     from data_services.excel_loader import FXDataLoader
-    from config import DATA_CONFIG
 
     parser = argparse.ArgumentParser(description="外汇多周期综合分析")
     parser.add_argument('--pair', type=str, help='货币对代码（如 EUR、JPY 等）')
-    parser.add_argument('--data_file', type=str, default=DATA_CONFIG['data_file'], help='数据文件路径')
+    parser.add_argument('--data_file', type=str, default=os.getenv('DATA_FILE', 'data/raw/FXRate_20260330.xlsx'), help='数据文件路径')
     parser.add_argument('--no-llm', action='store_true',
                        help='禁用大模型分析（默认启用）')
 

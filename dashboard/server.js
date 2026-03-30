@@ -600,24 +600,31 @@ app.post('/api/v1/upload', upload.single('file'), (req, res) => {
     const { filename, path: filePath, size } = req.file;
     logInfo(`File uploaded: ${filename}, size: ${size} bytes, path: ${filePath}`);
 
-    // Update config.py with new data file path
+    // Update .env file with new data file path
     try {
-      const configPath = path.resolve(process.env.CONFIG_PATH || '../config.py');
-      let configContent = fs.readFileSync(configPath, 'utf8');
+      const envPath = path.resolve('.env');
+      let envContent = fs.readFileSync(envPath, 'utf8');
       
-      // Replace data_file configuration
+      // Replace or add DATA_FILE configuration
       const newFilePath = `data/raw/${filename}`;
-      const dataFileRegex = /'data_file':\s*'[^']*'/;
-      configContent = configContent.replace(
-        dataFileRegex,
-        `'data_file': '${newFilePath}'`
-      );
+      const dataFileRegex = /^DATA_FILE=.*/m;
       
-      fs.writeFileSync(configPath, configContent, 'utf8');
-      logInfo(`Config updated: data_file = ${newFilePath}`);
-    } catch (configError) {
-      logError(`Failed to update config.py: ${configError.message}`);
-      // Continue even if config update fails
+      if (dataFileRegex.test(envContent)) {
+        // Update existing DATA_FILE
+        envContent = envContent.replace(
+          dataFileRegex,
+          `DATA_FILE=${newFilePath}`
+        );
+      } else {
+        // Add DATA_FILE if not exists
+        envContent = envContent.trim() + '\n' + `DATA_FILE=${newFilePath}\n`;
+      }
+      
+      fs.writeFileSync(envPath, envContent, 'utf8');
+      logInfo(`.env updated: DATA_FILE = ${newFilePath}`);
+    } catch (envError) {
+      logError(`Failed to update .env: ${envError.message}`);
+      // Continue even if .env update fails
     }
 
     // Clear cache to force reload with new data

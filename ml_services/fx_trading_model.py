@@ -10,7 +10,6 @@ from sklearn.metrics import accuracy_score, classification_report
 from ml_services.base_model_processor import BaseModelProcessor
 from ml_services.feature_engineering import FeatureEngineer
 from data_services.technical_analysis import TechnicalAnalyzer
-from config import DATA_CONFIG
 
 import logging
 
@@ -350,7 +349,7 @@ if __name__ == "__main__":
     parser.add_argument('--pair', type=str, required=True, help='货币对代码 (EUR, JPY, AUD, GBP, CAD, NZD)')
     parser.add_argument('--horizon', type=int, default=20, help='预测周期（天数），默认 20')
     parser.add_argument('--all-horizons', action='store_true', help='训练/预测所有周期（1天、5天、20天）')
-    parser.add_argument('--data_file', type=str, default=DATA_CONFIG['data_file'], help='数据文件路径')
+    parser.add_argument('--data_file', type=str, default=os.getenv('DATA_FILE', 'data/raw/FXRate_20260330.xlsx'), help='数据文件路径')
 
     args = parser.parse_args()
 

@@ -1739,3 +1739,78 @@
       - 推送到远程仓库
       - 考虑安装 ESLint 和配置 pre-commit hook
       - 建立代码修改流程规范
+
+- 日期：2026-03-30（第十九次更新 - 配置管理统一优化）
+- 更新者：iFlow CLI
+- 更新内容：
+  - **配置管理统一**：
+    - 问题：`.env` 和 `config.py` 都有 `DATA_FILE` 配置，造成重复和混乱
+    - 页面显示的日期问题根源：
+      - `.env` 中配置：`DATA_FILE=data/raw/FXRate_20260320.xlsx`（最后日期 2026-03-20）
+      - 但实际有新数据文件：`FXRate_20260330.xlsx`（最后日期 2026-03-27）
+      - Dashboard 使用的是下午生成的预测文件，使用的是旧数据文件
+    
+    - **解决方案**：
+      1. 从 `config.py` 的 `DATA_CONFIG` 中删除 `data_file` 字段
+      2. 统一通过 `.env` 文件管理数据文件路径
+      3. 更新 `comprehensive_analysis.py` 和 `fx_trading_model.py` 中的 argparse 默认值
+      4. 删除对 `DATA_CONFIG['data_file']` 的验证检查
+      5. 删除未使用的 `DATA_CONFIG` 导入
+    
+    - **修改后的配置结构**：
+      - `.env` 文件（所有可配置项）：
+        ```bash
+        DATA_FILE=data/raw/FXRate_20260330.xlsx
+        QWEN_API_KEY=sk-xxxx
+        QWEN_CHAT_URL=...
+        ```
+      - `config.py` 的 `DATA_CONFIG`（仅固定系统配置）：
+        ```python
+        DATA_CONFIG = {
+            'supported_pairs': [...],  # 支持的货币对列表
+            'pair_symbols': {...},      # 货币对符号映射
+            'min_data_points': 100,     # 最小数据点数
+            'train_test_split': 0.8     # 训练测试分割比例
+        }
+        ```
+    
+    - **配置优先级**（保持不变）：
+      1. 命令行参数 `--data-file`（最高优先级）
+      2. 环境变量 `DATA_FILE`（`.env` 文件）
+      3. 代码默认值 `data/raw/FXRate_20260330.xlsx`（最低优先级）
+    
+    - **Dashboard 文件上传功能更新**：
+      - 修改前：尝试更新 `config.py`（现已无效）
+      - 修改后：正确更新 `.env` 文件
+      - 上传文件流程：
+        1. 文件保存到 `data/raw/` 目录
+        2. 自动更新 `.env` 中的 `DATA_FILE` 配置
+        3. 清除服务器缓存
+        4. 日志记录配置更新
+    
+    - **验证步骤**：
+      1. 检查 `DATA_CONFIG` keys：只包含固定配置
+      2. 验证代码导入成功
+      3. 确认配置验证通过
+      4. 测试文件上传功能
+    
+    - **涉及文件**：
+      - `.env`：更新数据文件路径
+      - `config.py`：删除 `data_file` 字段和相关验证
+      - `comprehensive_analysis.py`：更新 argparse 默认值，删除未使用导入
+      - `ml_services/fx_trading_model.py`：更新 argparse 默认值，删除未使用导入
+      - `dashboard/server.js`：更新文件上传后的配置更新逻辑
+    
+    - **经验教训**（已记录到 lessons.md）：
+      1. **配置管理应该单一职责**：可配置项（如文件路径）应该由环境变量管理，固定配置放在代码中
+      2. **避免重复配置**：多个地方有相同配置会导致混乱和维护困难
+      3. **配置分层管理**：
+         - 环境变量：运行时可配置项（API 密钥、文件路径等）
+         - 代码配置：固定系统配置（支持的货币对、参数默认值等）
+      4. **功能修改需要全面检查**：删除配置字段时，需要检查所有引用该配置的地方
+      5. **Dashboard 功能需要同步更新**：后端配置变更时，前端相关功能也需要更新
+    
+    - **下一步工作**：
+      - 更新文档中的旧引用（lessons.md, docs/）
+      - 提交配置管理优化代码
+      - 推送到远程仓库

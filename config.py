@@ -98,7 +98,6 @@ INDICATOR_CONFIG = {
 
 # 数据配置
 DATA_CONFIG = {
-    'data_file': 'data/raw/FXRate_20260330.xlsx',  # 默认数据文件路径
     'supported_pairs': ['EUR', 'JPY', 'GBP', 'AUD', 'CAD', 'NZD', 'HKD'],
     'pair_symbols': {
         'EUR': 'EURUSD',
@@ -145,16 +144,6 @@ def validate_config():
     if DATA_CONFIG['min_data_points'] < 50:
         logger.error("最小数据点数不能少于50")
         return False
-
-    # 验证数据文件配置
-    if not DATA_CONFIG.get('data_file'):
-        logger.error("数据文件路径不能为空")
-        return False
-
-    # 检查数据文件是否存在（可选，因为可能是命令行参数）
-    data_file = DATA_CONFIG['data_file']
-    if data_file and not Path(data_file).exists():
-        logger.warning(f"默认数据文件不存在: {data_file}，请使用 --data-file 参数指定")
 
     # 验证技术指标配置
     if not INDICATOR_CONFIG:
