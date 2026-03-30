@@ -24,8 +24,8 @@ services:
       # 挂载 .env 配置文件（宿主机更新自动生效）
       - ../../.env:/app/.env:ro
       
-      # 挂载 config.py 配置文件（宿主机更新自动生效）
-      - ../../config.py:/app/config.py:ro
+      # 挂载 config.py 配置文件（双向同步，宿主机和容器都可修改）
+      - ../../config.py:/app/config.py
       
       # 挂载数据目录
       - ../../data/raw:/app/data/raw

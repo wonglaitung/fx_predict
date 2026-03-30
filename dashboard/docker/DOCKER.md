@@ -261,9 +261,15 @@ docker-compose exec fx-predict crontab -l
 
 以下目录和文件通过 Volume 挂载，数据会保存在宿主机：
 
-**配置文件（宿主机更新自动生效）：**
-- `./.env`：环境变量配置文件（QWEN_API_KEY 等）
-- `./config.py`：系统配置文件（货币对、模型参数、技术指标等）
+**配置文件（双向同步）：**
+- `./.env`：环境变量配置文件（QWEN_API_KEY 等，只读模式）
+- `./config.py`：系统配置文件（货币对、模型参数、技术指标等，读写模式）
+
+**说明：**
+- `.env` 是只读挂载（`:ro`），只能通过宿主机修改
+- `config.py` 是读写挂载，容器内部和宿主机都可以修改，双向同步
+- 容器内部修改 config.py 后，会立即同步到宿主机
+- 宿主机修改 config.py 后，也会立即同步到容器内部
 
 **数据目录：**
 - `./data/raw/`：原始数据文件
@@ -314,31 +320,44 @@ docker-compose restart
 
 ### 配置文件未生效
 
-由于 `.env` 和 `config.py` 通过 Volume 挂载（只读模式），宿主机修改后会立即在容器中生效。
+由于 `.env` 和 `config.py` 通过 Volume 挂载，宿主机修改后会立即在容器中生效。
 
-**修改 .env 文件：**
+**修改 .env 文件（只读挂载）：**
 ```bash
-# 编辑 .env 文件
+# 编辑 .env 文件（在宿主机上）
 vim ../../.env
 
-# 无需重启，下次运行时自动使用新配置
+# 容器内无法修改 .env，只能通过宿主机修改
+# 修改后立即在容器中生效（无需重启）
 ```
 
-**修改 config.py 文件：**
+**修改 config.py 文件（双向同步）：**
 ```bash
-# 编辑 config.py 文件
+# 方法1：在宿主机上修改
 vim ../../config.py
 
-# 无需重启，下次运行时自动使用新配置
+# 方法2：在容器内部修改
+docker-compose exec fx-predict vim /app/config.py
+# 或者
+docker-compose exec fx-predict nano /app/config.py
+
+# 两种方式都会双向同步，修改后立即生效
 ```
 
 **注意：**
+- `.env` 是只读挂载，只能通过宿主机修改
+- `config.py` 是读写挂载，容器内部和宿主机都可以修改，双向同步
 - 如果需要立即应用配置，可以重启容器：`docker-compose restart`
 - 如果修改了端口等影响容器启动的配置，需要重建容器：
   ```bash
   docker-compose down
   docker-compose up -d
   ```
+
+**在 Dashboard 中修改配置：**
+- Dashboard 的文件上传功能可以更新 config.py
+- 上传后的 config.py 会自动同步到宿主机
+- 下次运行时自动使用新配置
 
 ### 内存不足
 

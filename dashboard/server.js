@@ -645,6 +645,91 @@ app.post('/api/v1/upload', upload.single('file'), (req, res) => {
   }
 });
 
+// Upload config file endpoint
+app.post('/api/v1/upload-config', upload.single('file'), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        error: {
+          code: 'INVALID_REQUEST',
+          message: '未上传文件'
+        }
+      });
+    }
+
+    const { filename, path: filePath, size } = req.file;
+
+    // Validate file type (must be .py)
+    if (!filename.endsWith('.py')) {
+      return res.status(400).json({
+        error: {
+          code: 'INVALID_REQUEST',
+          message: '只接受 .py 格式的文件'
+        }
+      });
+    }
+
+    logInfo(`Config file uploaded: ${filename}, size: ${size} bytes, path: ${filePath}`);
+
+    // Move file to config.py location
+    const configPath = path.resolve(process.env.CONFIG_PATH || '/app/config.py');
+    
+    try {
+      // Read the uploaded file
+      const configContent = fs.readFileSync(filePath, 'utf8');
+      
+      // Validate that it contains required config sections
+      const requiredSections = ['CURRENCY_PAIRS', 'MODEL_CONFIG', 'DATA_CONFIG'];
+      const missingSections = requiredSections.filter(section => !configContent.includes(section));
+      
+      if (missingSections.length > 0) {
+        return res.status(400).json({
+          error: {
+            code: 'INVALID_CONFIG',
+            message: '配置文件缺少必需的配置项',
+            details: `缺少配置项: ${missingSections.join(', ')}`
+          }
+        });
+      }
+      
+      // Write to config.py
+      fs.writeFileSync(configPath, configContent, 'utf8');
+      logInfo(`Config file updated: ${configPath}`);
+      
+      // Clear cache to force reload with new config
+      dataCache.clear();
+      dataCache.clearByPattern('strategy_indicators:');
+      logInfo('Cache cleared after config upload');
+      
+      res.json({
+        success: true,
+        message: '配置文件上传成功',
+        file: {
+          filename: filename,
+          size: size,
+          uploaded_at: new Date().toISOString()
+        }
+      });
+    } catch (configError) {
+      logError(`Failed to update config.py: ${configError.message}`);
+      return res.status(500).json({
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: '配置文件更新失败'
+        }
+      });
+    }
+  } catch (error) {
+    logError(`Config upload failed: ${error.message}`);
+    res.status(500).json({
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: '配置文件上传失败'
+      }
+    });
+  }
+});
+
 // Get strategy indicators for a specific pair and horizon
 app.get('/api/v1/strategies/:pair/:horizon/indicators', (req, res) => {
   try {
