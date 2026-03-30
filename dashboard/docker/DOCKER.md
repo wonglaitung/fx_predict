@@ -6,7 +6,7 @@
 
 - **Dashboard 服务**：提供 Web 界面，实时显示外汇预测和分析结果
 - **定时任务**：每小时自动执行 `run_full_pipeline.sh`，更新预测数据
-- **配置管理**：通过 Volume �挂载 `.env` 文件，宿主机更新自动生效
+- **配置管理**：通过 Volume 挂载 `.env` 和 `config.py` 文件，宿主机更新自动生效
 
 ## 前置要求
 
@@ -259,8 +259,13 @@ docker-compose exec fx-predict crontab -l
 
 ## 数据持久化
 
-以下目录通过 Volume 挂载，数据会保存在宿主机：
+以下目录和文件通过 Volume 挂载，数据会保存在宿主机：
 
+**配置文件（宿主机更新自动生效）：**
+- `./.env`：环境变量配置文件（QWEN_API_KEY 等）
+- `./config.py`：系统配置文件（货币对、模型参数、技术指标等）
+
+**数据目录：**
 - `./data/raw/`：原始数据文件
 - `./data/models/`：训练好的模型
 - `./data/predictions/`：预测结果
@@ -306,6 +311,34 @@ docker-compose exec fx-predict cat /app/.env
 # 重启服务
 docker-compose restart
 ```
+
+### 配置文件未生效
+
+由于 `.env` 和 `config.py` 通过 Volume 挂载（只读模式），宿主机修改后会立即在容器中生效。
+
+**修改 .env 文件：**
+```bash
+# 编辑 .env 文件
+vim ../../.env
+
+# 无需重启，下次运行时自动使用新配置
+```
+
+**修改 config.py 文件：**
+```bash
+# 编辑 config.py 文件
+vim ../../config.py
+
+# 无需重启，下次运行时自动使用新配置
+```
+
+**注意：**
+- 如果需要立即应用配置，可以重启容器：`docker-compose restart`
+- 如果修改了端口等影响容器启动的配置，需要重建容器：
+  ```bash
+  docker-compose down
+  docker-compose up -d
+  ```
 
 ### 内存不足
 
@@ -371,8 +404,8 @@ server {
 ### 备份数据
 
 ```bash
-# 备份所有数据目录（需要先 cd dashboard/docker，然后 cd .. 回到项目根目录）
-tar -czf backup-$(date +%Y%m%d).tar.gz ../data/ ../logs/ ../.env
+# 备份所有数据目录和配置文件（需要先 cd dashboard/docker，然后 cd .. 回到项目根目录）
+tar -czf backup-$(date +%Y%m%d).tar.gz ../data/ ../logs/ ../.env ../config.py
 
 # 备份到远程
 scp backup-$(date +%Y%m%d).tar.gz user@backup-server:/backups/
