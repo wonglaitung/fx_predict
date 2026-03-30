@@ -645,20 +645,6 @@ app.post('/api/v1/upload', upload.single('file'), (req, res) => {
   }
 });
 
-// Upload config file endpoint
-      });
-    }
-  } catch (error) {
-    logError(`Config upload failed: ${error.message}`);
-    res.status(500).json({
-      error: {
-        code: 'INTERNAL_ERROR',
-        message: '配置文件上传失败'
-      }
-    });
-  }
-});
-
 // Get strategy indicators for a specific pair and horizon
 app.get('/api/v1/strategies/:pair/:horizon/indicators', (req, res) => {
   try {

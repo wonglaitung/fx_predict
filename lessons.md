@@ -355,7 +355,53 @@ curl -s http://localhost:3000/api/v1/pairs | python3 -c "import sys, json; data=
 
 ## 代码质量问题
 
-### 1. 测试覆盖率不均
+### 1. 代码修改后必须进行语法检查
+
+**问题**：在删除 `/api/v1/upload-config` 端点时，留下了孤立的代码块（重复的右大括号和残留的 catch 块），导致 Dashboard 服务器启动失败。
+
+**错误信息**：
+```javascript
+/app/dashboard/server.js:649
+      });
+      ^
+SyntaxError: Unexpected token '}'
+```
+
+**根本原因**：
+- 删除代码时没有检查是否有残留的代码块
+- 没有在修改后运行语法检查工具
+- 直接尝试启动服务器，而不是先验证语法
+
+**解决方案**：
+1. 使用 Node.js 的语法检查工具：`node -c server.js`
+2. 在每次修改后立即运行语法检查
+3. 确保没有语法错误后再启动服务器
+4. 使用 ESLint 等静态代码分析工具
+
+**正确的修改流程**：
+```bash
+# 1. 修改代码
+vim server.js
+
+# 2. 检查语法
+node -c server.js
+
+# 3. 如果语法正确，启动服务器
+npm start
+
+# 4. 验证服务器运行正常
+curl http://localhost:3000/health
+```
+
+**预防措施**：
+- 在 git 提交前运行语法检查
+- 在 CI/CD 流程中添加语法检查步骤
+- 使用 pre-commit hook 自动检查语法
+- 配置编辑器实时语法检查（VSCode, WebStorm 等）
+
+**教训**：**代码修改后必须进行语法检查，特别是对于 JavaScript 这样的动态类型语言。语法错误会导致运行时失败，影响开发效率和用户体验。**
+
+### 2. 测试覆盖率不均
 
 **问题**：部分模块测试覆盖率低于目标（70%）。
 

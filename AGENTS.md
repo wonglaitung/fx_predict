@@ -11,10 +11,10 @@
 - **大模型集成**：通义千问 API，提供技术面深度分析、ML 预测验证、风险分析和交易建议
 - **交易方案生成器**：自动计算入场价、止损止盈（基于 ATR）、风险回报比
 - **Yahoo Finance 数据集成**：自动获取 6 年历史外汇数据（1622 条记录/货币对），支持定时更新
-- **Web Dashboard**：Node.js + Express 实时可视化仪表盘，支持大模型分析展示、策略指标详情
-- **文件上传功能**：支持通过 Dashboard 上传 Excel 数据文件
-- **Docker 部署**：提供完整的 Docker 部署方案，支持容器化运行和定时任务
-- **一体化脚本**：`run_full_pipeline.sh` 脚本实现训练、预测、分析全流程自动化
+- **Web Dashboard**：Node.js + Express 实时可视化仪表盘，支持大模型分析展示、策略指标详情、文件上传
+- **文件上传功能**：支持通过 Dashboard 上传 Excel 数据文件，自动更新配置和刷新数据
+- **Docker 部署**：提供完整的 Docker 部署方案，支持容器化运行、定时任务、配置文件双向同步
+- **一体化脚本**：`run_full_pipeline.sh` 脚本实现训练、预测、分析全流程自动化，支持 Yahoo Finance 数据获取
 
 ## 快速开始
 
@@ -54,13 +54,13 @@ cp .env.example .env
 **获取最新数据：**
 ```bash
 # 获取所有货币对数据（6年历史）
-python3 fetch_fx_data.py --start-date 2020-01-01 --end-date 2026-03-27 --merge
+python3 fetch_fx_data.py --start-date 2020-01-01 --end-date 2026-03-30 --merge
 
 # 获取指定货币对
 python3 fetch_fx_data.py --pairs EUR JPY --merge
 
 # 只获取最近一年数据
-python3 fetch_fx_data.py --start-date 2025-03-27 --end-date 2026-03-27 --merge
+python3 fetch_fx_data.py --start-date 2025-03-30 --end-date 2026-03-30 --merge
 ```
 
 **参数说明：**
@@ -123,7 +123,7 @@ curl -X POST http://localhost:3000/api/v1/upload \
   -F "file=@FXRate_20260327.xlsx"
 ```
 
-文件会自动保存到 `data/raw/` 目录，服务器缓存会被清除。
+文件会自动保存到 `data/raw/` 目录，服务器缓存会被清除，config.py 会自动更新。
 
 **优先级**：命令行参数 > 环境变量 > 配置文件默认值
 
@@ -163,27 +163,13 @@ cd dashboard/docker
 # http://localhost:3000
 ```
 
-**方式二：使用 docker-compose**
-
-```bash
-# 进入 Docker 目录
-cd dashboard/docker
-
-# 构建并启动服务
-docker-compose up -d
-
-# 查看日志
-docker-compose logs -f
-
-# 访问 Dashboard
-# http://localhost:3000
-```
-
 ### Docker 功能特性
 
 - **Dashboard 服务**：提供 Web 界面，实时显示外汇预测和分析结果
 - **定时任务**：每小时自动执行 `run_full_pipeline.sh`，更新预测数据
-- **配置管理**：通过 Volume 挂载 `.env` 文件，宿主机更新自动生效
+- **配置管理**：
+  - `.env` 文件：只读挂载（`:ro`），宿主机更新自动生效，容器内无法修改
+  - `config.py`：读写挂载，宿主机和容器内部都可以修改，双向同步
 - **数据持久化**：数据、模型、日志通过 Volume 挂载，容器删除不丢失
 
 ### Docker 常用命令
@@ -212,6 +198,38 @@ docker-compose logs -f
 
 完整的 Docker 部署文档请参考：`dashboard/docker/DOCKER.md`
 
+### 配置文件管理
+
+**宿主机编辑配置：**
+```bash
+# 编辑 .env 文件（只读挂载）
+vim .env
+
+# 编辑 config.py 文件（双向同步）
+vim config.py
+```
+
+**容器内部编辑配置：**
+```bash
+# 进入 Docker 目录
+cd dashboard/docker
+
+# 进入容器内部
+./docker-deploy.sh exec bash
+
+# 编辑 config.py 文件
+vim /app/config.py
+# 或
+nano /app/config.py
+
+# 修改后立即同步到宿主机
+```
+
+**注意：**
+- `.env` 文件只能通过宿主机修改
+- `config.py` 可以在宿主机和容器内部编辑，实时双向同步
+- 修改后无需重启容器，下次运行时自动使用新配置
+
 ### 一键运行完整流程（推荐）
 
 **方式一：使用现有数据文件**
@@ -229,10 +247,25 @@ docker-compose logs -f
 **方式二：先获取最新数据，再运行流程**
 ```bash
 # 1. 获取最新的 Yahoo Finance 数据
-python3 fetch_fx_data.py --start-date 2020-01-01 --end-date 2026-03-27 --merge
+python3 fetch_fx_data.py --start-date 2020-01-01 --end-date 2026-03-30 --merge
 
 # 2. 运行完整流程（使用新数据）
-./run_full_pipeline.sh --data-file data/raw/FXRate_20260328_yahoo.xlsx
+./run_full_pipeline.sh --data-file data/raw/FXRate_20260330_yahoo.xlsx
+```
+
+**方式三：一键获取数据并运行流程**
+```bash
+# 使用 --fetch-yahoo 参数自动获取数据并运行完整流程
+./run_full_pipeline.sh --fetch-yahoo
+
+# 获取指定日期范围的数据
+./run_full_pipeline.sh --fetch-yahoo --start-date 2025-01-01 --end-date 2026-03-30
+
+# 获取指定货币对的数据
+./run_full_pipeline.sh --fetch-yahoo --yahoo-pairs EUR JPY GBP
+
+# 获取数据后跳过训练
+./run_full_pipeline.sh --fetch-yahoo --skip-training
 ```
 
 ### 启动 Dashboard（可选）
@@ -250,6 +283,7 @@ Dashboard 功能：
 - 技术指标图表（价格走势 + 均线、技术指标数值）
 - 风险提示面板
 - 点击卡片查看完整大模型分析（侧边栏详情）
+- 数据文件上传功能（上传后自动更新配置并刷新数据）
 
 ### 单独运行各模块
 
@@ -307,13 +341,13 @@ fx_predict/
 ├── fetch_fx_data.py               # Yahoo Finance 数据获取脚本
 ├── data/                           # 数据目录
 │   ├── raw/                       # 原始数据文件（Excel）
-│   │   └── FXRate_20260328_yahoo.xlsx  # Yahoo Finance 数据（6年历史）
+│   │   └── FXRate_20260330_yahoo.xlsx  # Yahoo Finance 数据（6年历史）
 │   ├── models/                    # 训练好的模型（CatBoost，18个模型）
 │   │   ├── EUR_catboost_1d.pkl
 │   │   ├── EUR_catboost_5d.pkl
 │   │   ├── EUR_catboost_20d.pkl
 │   │   ├── JPY_catboost_1d.pkl
-│   │   └── ...（6货币对 × 3周期）
+│   │   └── ...（7货币对 × 3周期）
 │   └── predictions/               # 预测结果（JSON格式）
 │       ├── EUR_multi_horizon_*.json
 │       ├── JPY_multi_horizon_*.json
@@ -322,12 +356,14 @@ fx_predict/
 │   ├── server.js                  # Express API 服务器
 │   ├── package.json               # Node.js 依赖
 │   ├── public/                    # 前端资源
-│   │   ├── index.html
-│   │   ├── css/
-│   │   └── js/
+│   │   ├── index.html             # 主页面（含文件上传功能）
+│   │   ├── css/styles.css         # 样式文件
+│   │   └── js/                    # JavaScript 文件
+│   │       ├── app.js             # 主应用逻辑
+│   │       ├── components.js      # UI 组件
+│   │       └── charts.js          # 图表渲染
 │   ├── docker/                    # Docker 部署文件
 │   │   ├── Dockerfile             # Docker 镜像定义
-│   │   ├── docker-compose.yml     # Docker Compose 配置
 │   │   ├── docker-deploy.sh       # Docker 部署脚本
 │   │   ├── docker-entrypoint.sh   # 容器启动脚本
 │   │   ├── .dockerignore          # Docker 忽略文件
@@ -348,7 +384,7 @@ fx_predict/
 ├── llm_services/                  # 大模型服务层
 │   └── qwen_engine.py            # 通义千问 API 封装
 ├── comprehensive_analysis.py      # 人机协作整合层（多周期）
-├── config.py                      # 配置文件
+├── config.py                      # 配置文件（支持 Docker 双向同步）
 ├── requirements.txt               # Python 依赖
 └── tests/                         # 测试文件（115个测试用例）
     ├── test_integration.py       # 集成测试
@@ -372,6 +408,7 @@ fx_predict/
 - **GBP/USD**（英镑/美元）
 - **USD/CAD**（美元/加元）
 - **NZD/USD**（新西兰元/美元）
+- **USD/HKD**（美元/港币）
 
 **注意**：货币对代码使用基准货币（如 EUR、JPY 等）作为键名。
 
@@ -636,12 +673,20 @@ npm start
      - 交易信号（Williams%R）
    - 状态颜色标识（超买/超卖/中性/强势/弱势）
 
-7. **自动刷新**：
+7. **数据文件上传功能**：
+   - 位于页面底部
+   - 支持上传 .xlsx 格式文件
+   - 文件大小限制 10MB
+   - 上传后自动更新 config.py
+   - 上传后自动刷新 Dashboard
+   - 显示上传进度和状态
+
+8. **自动刷新**：
    - 每 5 分钟自动刷新数据
-   - 显示"Auto-refresh: 5min"状态
+   - 显示"还有 X 秒刷新"倒计时
    - 显示最后刷新时间
 
-8. **日期显示**：
+9. **日期显示**：
    - 最后更新、自动刷新、最后刷新时间标签
    - 浅蓝色背景，显眼展示
 
@@ -652,7 +697,7 @@ npm start
 - `GET /health` - 健康检查
   - 描述：检查服务是否正常运行
   - 参数：无
-  - 响应：`{ "status": "ok", "timestamp": "..." }`
+  - 响应：`{ "status": "ok", "uptime": ..., "timestamp": "..." }`
 
 - `GET /api/v1/pairs` - 获取所有货币对信息
   - 描述：获取所有货币对的基本信息和预测结果
@@ -665,62 +710,42 @@ npm start
   - 响应：单个货币对的完整信息
 
 - `GET /api/v1/strategies` - 获取交易策略
-
   - 描述：获取所有货币对的交易策略
-
   - 参数：无
-
   - 响应：包含入场价、止损、止盈、建议、置信度等
 
-
+- `GET /api/v1/consistency` - 获取一致性分析
+  - 描述：获取所有货币对的一致性分析
+  - 参数：无
+  - 响应：包含一致性评分、趋势、技术指标支持度等
 
 - `GET /api/v1/indicators/:pair` - 获取技术指标
-
   - 描述：获取指定货币对的技术指标数值
-
   - 参数：pair（货币对代码）
-
   - 响应：包含所有 35 个技术指标的数值
+
+- `GET /api/v1/risk` - 获取风险分析
+  - 描述：获取所有货币对的风险分析
+  - 参数：无
+  - 响应：包含风险等级、风险因素、警告信息等
+
+- `POST /api/v1/upload` - 上传数据文件
+  - 描述：上传 Excel 数据文件到服务器
+  - 参数：file（表单数据，文件对象）
+  - 文件格式：.xlsx
+  - 文件大小限制：10MB
+  - 响应：上传成功消息
+  - 功能：
+    - 保存文件到 data/raw/ 目录
+    - 自动更新 config.py 中的数据文件路径
+    - 清除缓存
+    - 刷新 Dashboard 数据
 
 - `GET /api/v1/strategies/:pair/:horizon/indicators` - 获取策略关键指标
   - 描述：获取指定货币对和周期的关键技术指标（6个类别）
   - 参数：pair（货币对代码），horizon（周期，1/5/20）
   - 响应：包含支撑阻力、趋势强度、动量、波动性、关键均线、交易信号等
   - 缓存：TTL 5分钟，key 格式 `strategy_indicators:{pair}:{horizon}`
-
-- `GET /api/v1/risk` - 获取风险分析
-
-  - 描述：获取所有货币对的风险分析
-
-  - 参数：无
-
-  - 响应：包含风险等级、风险因素、警告信息等
-
-
-
-- `POST /api/v1/upload` - 上传数据文件
-
-  - 描述：上传 Excel 数据文件到服务器
-
-  - 参数：file（表单数据，文件对象）
-
-  - 文件格式：.xlsx
-
-  - 文件大小限制：10MB
-
-  - 响应：上传成功消息
-
-  - 示例：
-
-    ```bash
-
-    curl -X POST http://localhost:3000/api/v1/upload \
-
-      -F "file=@FXRate_20260327.xlsx"
-
-    ```
-
-  - 文件会自动保存到 `data/raw/` 目录，服务器缓存会被清除
 
 ## 测试覆盖率
 
@@ -731,7 +756,7 @@ npm start
   - comprehensive_analysis.py: 92% ✅
   - ml_services/fx_trading_model.py: 91% ✅
   - data_services/excel_loader.py: 83% ✅
-  - data_services/technical_analysis.py: 78% ✅ ✅
+  - data_services/technical_analysis.py: 78% ✅
   - ml_services/base_model_processor.py: 74% ✅
   - **新模块覆盖率**：
     - multi_horizon_context.py: 100% ✅
@@ -876,7 +901,7 @@ logging.basicConfig(
 
 ### 模型数量
 
-- **总模型数**：18 个（6个货币对 × 3个周期）
+- **总模型数**：21 个（7个货币对 × 3个周期）
 - **模型命名**：`{pair}_catboost_{horizon}d.pkl`
   - 示例：`EUR_catboost_1d.pkl`, `JPY_catboost_20d.pkl`
 
@@ -995,7 +1020,7 @@ cd dashboard && npm start
 curl -X POST http://localhost:3000/api/v1/upload \
   -F "file=@FXRate_20260326.xlsx"
 ```
-文件会自动保存到 `data/raw/` 目录
+文件会自动保存到 `data/raw/` 目录，config.py 会自动更新，Dashboard 会自动刷新。
 
 **优先级**：命令行参数 > 环境变量 > 配置文件默认值
 
@@ -1090,7 +1115,7 @@ npm start
 示例：
 - JPY 20天 sell：入场 158.36，止损 167.86（+9.50），止盈 148.86（-9.50），距离完全相等
 
-### 12. 如何获取最新外汇数据
+### 10. 如何获取最新外汇数据
 
 **问题**：如何自动获取最新的外汇数据？
 
@@ -1100,13 +1125,13 @@ npm start
 
 ```bash
 # 获取所有货币对数据（6年历史）
-python3 fetch_fx_data.py --start-date 2020-01-01 --end-date 2026-03-27 --merge
+python3 fetch_fx_data.py --start-date 2020-01-01 --end-date 2026-03-30 --merge
 
 # 获取指定货币对
 python3 fetch_fx_data.py --pairs EUR JPY --merge
 
 # 只获取最近一年数据
-python3 fetch_fx_data.py --start-date 2025-03-27 --end-date 2026-03-27 --merge
+python3 fetch_fx_data.py --start-date 2025-03-30 --end-date 2026-03-30 --merge
 
 # 保存单独文件（不合并）
 python3 fetch_fx_data.py --pairs EUR
@@ -1129,7 +1154,7 @@ python3 fetch_fx_data.py --pairs EUR
 0 2 * * 1 cd /data/fx_predict && python3 fetch_fx_data.py --merge >> /var/log/fx_update.log 2>&1
 ```
 
-### 13. 如何使用 Docker 部署
+### 11. 如何使用 Docker 部署
 
 **问题**：如何使用 Docker 部署项目？
 
@@ -1139,13 +1164,9 @@ python3 fetch_fx_data.py --pairs EUR
 # 进入 Docker 目录
 cd dashboard/docker
 
-# 使用 docker-deploy.sh 脚本（推荐）
+# 使用 docker-deploy.sh 脚本
 ./docker-deploy.sh build
 ./docker-deploy.sh up
-
-# 或使用 docker-compose
-docker-compose build
-docker-compose up -d
 
 # 访问 Dashboard
 # http://localhost:3000
@@ -1153,7 +1174,7 @@ docker-compose up -d
 
 详细文档请参考：`dashboard/docker/DOCKER.md`
 
-### 11. Docker 容器无法启动
+### 12. Docker 容器无法启动
 
 **问题**：Docker 容器启动失败。
 
@@ -1174,12 +1195,46 @@ netstat -tulpn | grep 3000
 ls -la ../data/raw/FXRate_20260320.xlsx
 
 # 查看容器日志
-docker-compose logs fx-predict
-# 或
 ./docker-deploy.sh logs
 ```
 
-### 12. 如何查看 Docker 容器中的定时任务日志
+### 13. 如何在 Docker 中修改配置
+
+**问题**：如何在 Docker 容器中修改配置文件？
+
+**解决方案**：
+
+**方式1：在宿主机上修改**
+```bash
+# 编辑 .env 文件（只读挂载，只能通过宿主机修改）
+vim .env
+
+# 编辑 config.py 文件（双向同步，可以在宿主机或容器内修改）
+vim config.py
+```
+
+**方式2：在容器内部修改**
+```bash
+# 进入 Docker 目录
+cd dashboard/docker
+
+# 进入容器内部
+./docker-deploy.sh exec bash
+
+# 编辑 config.py 文件
+vim /app/config.py
+# 或
+nano /app/config.py
+
+# 修改后立即同步到宿主机
+```
+
+**注意：**
+- `.env` 文件只能通过宿主机修改
+- `config.py` 可以在宿主机和容器内部编辑，实时双向同步
+- 修改后无需重启容器，下次运行时自动使用新配置
+
+### 14. 如何查看 Docker 容器中的定时任务日志
 
 **问题**：如何查看定时任务是否正常执行？
 
@@ -1189,12 +1244,12 @@ docker-compose logs fx-predict
 cd dashboard/docker
 
 # 查看 pipeline 执行日志
-docker-compose exec fx-predict cat /app/logs/pipeline.log
+./docker-deploy.sh exec cat /app/logs/pipeline.log
 
 # 查看 cron 守护进程日志
-docker-compose exec fx-predict cat /app/logs/cron.log
+./docker-deploy.sh exec cat /app/logs/cron.log
 
-# 或使用 docker-deploy.sh
+# 或进入容器查看
 ./docker-deploy.sh exec bash
 # 在容器内查看日志
 cat /app/logs/pipeline.log
@@ -1204,8 +1259,8 @@ cat /app/logs/cron.log
 ## 开发者
 
 - **创建时间**：2026-03-25
-- **最后更新**：2026-03-27
-- **版本**：5.0（多周期 + Dashboard + Docker + Yahoo Finance 数据集成）
+- **最后更新**：2026-03-30
+- **版本**：6.0（多周期 + Dashboard + Docker + Yahoo Finance + 文件上传 + 配置文件双向同步）
 - **Python 版本**：3.10+
 - **Node.js 版本**：18+
 - **Docker 版本**：20.10+

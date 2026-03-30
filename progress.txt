@@ -1638,3 +1638,104 @@
     - 优化现有接口的设计
     - 提高系统的简洁性
     - 持续改进用户体验
+
+- 日期：2026-03-30（第十八次更新 - Dashboard 语法错误修复）
+- 更新者：iFlow CLI
+- 更新内容：
+  - **Dashboard 服务器启动失败修复**：
+    - 问题：Dashboard 服务器启动时遇到 SyntaxError，无法正常运行
+    - 错误信息：
+      ```
+      /app/dashboard/server.js:649
+            });
+            ^
+      SyntaxError: Unexpected token '}'
+      ```
+    - 根本原因：
+      - 在移除 `/api/v1/upload-config` 端点时（commit: f161bbe），留下了孤立的代码块
+      - 第 651-660 行包含重复的右大括号和残留的 catch 块
+      - 这些代码块没有与任何 if/try 语句配对，导致语法错误
+    - 问题代码：
+      ```javascript
+      }
+      });
+
+      // Upload config file endpoint
+            });
+          }
+        } catch (error) {
+          logError(`Config upload failed: ${error.message}`);
+          res.status(500).json({
+            error: {
+              code: 'INTERNAL_ERROR',
+              message: '配置文件上传失败'
+            }
+          });
+        }
+      });
+      ```
+    
+    - 解决方案：
+      - 删除第 651-660 行的孤立代码块
+      - 只保留正常的右大括号（第 647-650 行）
+      - 确保所有 if/try/catch/else 块正确配对
+    
+    - 修复后的代码：
+      ```javascript
+      }
+      });
+
+      // Get strategy indicators for a specific pair and horizon
+      app.get('/api/v1/strategies/:pair/:horizon/indicators', (req, res) => {
+      ```
+    
+    - 验证步骤：
+      1. 运行语法检查：`node -c server.js`
+      2. 检查命令输出：无输出表示语法正确
+      3. 测试启动服务器：`timeout 5 npm start`
+      4. 确认服务器启动成功，打印 API 端点信息
+      5. 验证服务器可以访问：curl http://localhost:3000/health
+    
+    - 验证结果：
+      - 语法检查通过（无输出）
+      - 服务器启动成功（打印 9 个 API 端点）
+      - 服务器运行在端口 3000
+      - 所有 API 端点正常显示
+    
+    - 经验教训（已记录到 lessons.md）：
+      1. **代码修改后必须进行语法检查**：特别是对于 JavaScript 这样的动态类型语言
+      2. **使用语法检查工具**：`node -c filename.js` 可以快速验证语法
+      3. **正确的修改流程**：修改代码 → 检查语法 → 启动服务器 → 验证功能
+      4. **预防措施**：
+         - 在 git 提交前运行语法检查
+         - 在 CI/CD 流程中添加语法检查步骤
+         - 使用 pre-commit hook 自动检查语法
+         - 配置编辑器实时语法检查（VSCode, WebStorm 等）
+      5. **语法错误的后果**：会导致运行时失败，影响开发效率和用户体验
+    
+    - **为什么之前没有发现**：
+      - 修改代码后没有立即进行语法检查
+      - 直接尝试启动服务器，而不是先验证语法
+      - Git 提交前没有运行语法检查
+      - 没有使用自动化工具（如 ESLint）进行静态代码分析
+    
+    - **未来改进**：
+      - 安装 ESLint 并配置 pre-commit hook
+      - 在 CI/CD 流程中添加语法检查步骤
+      - 配置编辑器实时语法检查
+      - 建立"代码修改流程"规范
+    
+    - **涉及文件**：
+      - dashboard/server.js：删除第 651-660 行的孤立代码块
+      - lessons.md：添加"代码修改后必须进行语法检查"经验教训
+      - progress.txt：记录此次修复经历
+    
+    - **Git 状态**：
+      - 修改文件：dashboard/server.js, lessons.md
+      - 待提交：修复代码和文档更新
+    
+    - **下一步工作**：
+      - 提交修复代码
+      - 推送到远程仓库
+      - 考虑安装 ESLint 和配置 pre-commit hook
+      - 建立代码修改流程规范

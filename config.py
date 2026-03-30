@@ -98,7 +98,7 @@ INDICATOR_CONFIG = {
 
 # 数据配置
 DATA_CONFIG = {
-    'data_file': 'data/raw/FXRate_20260320.xlsx',  # 默认数据文件路径
+    'data_file': 'data/raw/FXRate_20260330.xlsx',  # 默认数据文件路径
     'supported_pairs': ['EUR', 'JPY', 'GBP', 'AUD', 'CAD', 'NZD', 'HKD'],
     'pair_symbols': {
         'EUR': 'EURUSD',
