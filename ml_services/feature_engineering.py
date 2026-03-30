@@ -36,6 +36,25 @@ class FeatureEngineer:
         5. 趋势斜率特征：Trend_Slope_20
         6. 市场环境特征：MA_Alignment
         7. 交叉特征：SMA5_cross_SMA20（均线交叉信号）, Price_vs_Bollinger（价格与布林带位置）
+        8. 高级形态识别特征（7个）：
+           - Head_Shoulders_Top: 头肩顶识别（0-1置信度）
+           - Head_Shoulders_Bottom: 头肩底识别（0-1置信度）
+           - Double_Top: 双顶识别（0-1置信度）
+           - Double_Bottom: 双底识别（0-1置信度）
+           - Triangle_Sym: 对称三角形识别（0-1置信度）
+           - Triangle_Asc: 上升三角形识别（0-1置信度）
+           - Triangle_Desc: 下降三角形识别（0-1置信度）
+        9. 支撑阻力位识别特征（6个）：
+           - Support_Level: 支撑位价格
+           - Resistance_Level: 阻力位价格
+           - Price_vs_Support: 当前价格相对于支撑位的距离（百分比）
+           - Price_vs_Resistance: 当前价格相对于阻力位的距离（百分比）
+           - Congestion_Zone: 密集成交区的价格范围
+           - Price_in_Congestion: 当前价格是否在密集成交区内（0-1）
+        10. 成交量分析特征（3个）：
+            - Volume_Distribution: 成交量分布的均匀程度（0-1）
+            - Volume_Profile: 成交量趋势（正=增加，负=减少）
+            - OBV_Divergence: OBV背离（正值=看涨，负值=看跌，0=无背离）
 
         Args:
             df: 包含技术指标的数据（至少需要 Close 列）
@@ -46,6 +65,7 @@ class FeatureEngineer:
         Notes:
             - 所有特征必须使用滞后数据（.shift(1)），防止数据泄漏
             - 返回的特征 DataFrame 不包含目标变量
+            - 高级形态识别、支撑阻力位识别和成交量分析特征由 technical_analysis.py 计算生成
         """
         features = df.copy()
 

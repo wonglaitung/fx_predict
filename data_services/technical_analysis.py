@@ -130,6 +130,55 @@ class TechnicalAnalyzer:
         # MA_Alignment
         result['MA_Alignment'] = self.compute_ma_alignment(result)
 
+        # ==================== 高级形态识别指标 ====================
+
+        # 头肩顶/底识别
+        head_shoulders = self.compute_head_shoulders(result)
+        result['Head_Shoulders_Top'] = head_shoulders['Head_Shoulders_Top']
+        result['Head_Shoulders_Bottom'] = head_shoulders['Head_Shoulders_Bottom']
+
+        # 双顶/双底识别
+        double_top_bottom = self.compute_double_top_bottom(result)
+        result['Double_Top'] = double_top_bottom['Double_Top']
+        result['Double_Bottom'] = double_top_bottom['Double_Bottom']
+
+        # 三角形整理
+        triangle_pattern = self.compute_triangle_pattern(result)
+        result['Triangle_Sym'] = triangle_pattern['Triangle_Sym']
+        result['Triangle_Asc'] = triangle_pattern['Triangle_Asc']
+        result['Triangle_Desc'] = triangle_pattern['Triangle_Desc']
+
+        # ==================== 支撑阻力位识别指标 ====================
+
+        # 历史高低点
+        support_resistance = self.compute_support_resistance_levels(result)
+        result['Support_Level'] = support_resistance['Support_Level']
+        result['Resistance_Level'] = support_resistance['Resistance_Level']
+        result['Price_vs_Support'] = support_resistance['Price_vs_Support']
+        result['Price_vs_Resistance'] = support_resistance['Price_vs_Resistance']
+
+        # 前期密集成交区
+        congestion = self.compute_congestion_zone(result)
+        result['Congestion_Zone'] = congestion['Congestion_Zone']
+        result['Price_in_Congestion'] = congestion['Price_in_Congestion']
+
+        # ==================== 成交量分析指标 ====================
+
+        # 成交量分布
+        if 'Volume' in result.columns:
+            volume_dist = self.compute_volume_distribution(result)
+            result['Volume_Distribution'] = volume_dist['Volume_Distribution']
+            result['Volume_Profile'] = volume_dist['Volume_Profile']
+        else:
+            result['Volume_Distribution'] = np.nan
+            result['Volume_Profile'] = np.nan
+
+        # OBV背离
+        if 'OBV' in result.columns:
+            result['OBV_Divergence'] = self.compute_obv_divergence(result)
+        else:
+            result['OBV_Divergence'] = np.nan
+
         self.logger.info(f"计算完成，共生成 {len(result.columns) - len(df.columns)} 个指标")
 
         return result
@@ -596,6 +645,594 @@ class TechnicalAnalyzer:
         alignment = bullish_score - bearish_score
 
         return alignment
+
+    # ==================== 高级形态识别实现 ====================
+
+    def compute_head_shoulders(self, df: pd.DataFrame,
+                               lookback: int = 60) -> pd.DataFrame:
+        """
+        识别头肩顶/底形态
+
+        头肩顶：三峰形态，中间峰（头）最高，两侧峰（肩）较低
+        头肩底：三谷形态，中间谷（头）最低，两侧谷（肩）较高
+
+        Args:
+            df: 数据框（需包含 High, Low, Close）
+            lookback: 回看周期
+
+        Returns:
+            DataFrame with columns: Head_Shoulders_Top, Head_Shoulders_Bottom
+            （使用shift(1)防止数据泄漏）
+            值为0-1之间的概率，表示形态的置信度
+        """
+        high = df['High'].shift(1)
+        low = df['Low'].shift(1)
+        close = df['Close'].shift(1)
+
+        # 初始化结果
+        hs_top = pd.Series(0.0, index=df.index)
+        hs_bottom = pd.Series(0.0, index=df.index)
+
+        # 滚动窗口检测
+        for i in range(lookback, len(df)):
+            window_high = high.iloc[i-lookback:i]
+            window_low = low.iloc[i-lookback:i]
+            window_close = close.iloc[i-lookback:i]
+
+            # 寻找峰值（头肩顶）
+            peaks = []
+            for j in range(5, len(window_high) - 5):
+                if window_high.iloc[j] == window_high.iloc[j-5:j+6].max():
+                    peaks.append(j)
+
+            # 至少需要3个峰值
+            if len(peaks) >= 3:
+                # 取最高的3个峰值
+                peak_heights = [(p, window_high.iloc[p]) for p in peaks]
+                peak_heights.sort(key=lambda x: x[1], reverse=True)
+                top_3_peaks = [p[0] for p in peak_heights[:3]]
+                top_3_peaks.sort()
+
+                # 检查是否为头肩顶：中间最高，两侧较低
+                if (len(top_3_peaks) == 3 and
+                    top_3_peaks[1] - top_3_peaks[0] >= 5 and
+                    top_3_peaks[2] - top_3_peaks[1] >= 5):
+
+                    head = window_high.iloc[top_3_peaks[1]]
+                    left_shoulder = window_high.iloc[top_3_peaks[0]]
+                    right_shoulder = window_high.iloc[top_3_peaks[2]]
+
+                    # 颈线
+                    neckline = min(left_shoulder, right_shoulder)
+
+                    # 头比肩高至少5%
+                    if head > left_shoulder * 1.05 and head > right_shoulder * 1.05:
+                        # 计算置信度（基于对称性和价格差）
+                        symmetry = 1 - abs(left_shoulder - right_shoulder) / ((left_shoulder + right_shoulder) / 2)
+                        confidence = min(1.0, symmetry)
+                        hs_top.iloc[i] = confidence
+
+            # 寻找谷值（头肩底）
+            valleys = []
+            for j in range(5, len(window_low) - 5):
+                if window_low.iloc[j] == window_low.iloc[j-5:j+6].min():
+                    valleys.append(j)
+
+            # 至少需要3个谷值
+            if len(valleys) >= 3:
+                # 取最低的3个谷值
+                valley_depths = [(v, window_low.iloc[v]) for v in valleys]
+                valley_depths.sort(key=lambda x: x[1])
+                top_3_valleys = [v[0] for v in valley_depths[:3]]
+                top_3_valleys.sort()
+
+                # 检查是否为头肩底：中间最低，两侧较高
+                if (len(top_3_valleys) == 3 and
+                    top_3_valleys[1] - top_3_valleys[0] >= 5 and
+                    top_3_valleys[2] - top_3_valleys[1] >= 5):
+
+                    head = window_low.iloc[top_3_valleys[1]]
+                    left_shoulder = window_low.iloc[top_3_valleys[0]]
+                    right_shoulder = window_low.iloc[top_3_valleys[2]]
+
+                    # 颈线
+                    neckline = max(left_shoulder, right_shoulder)
+
+                    # 头比肩低至少5%
+                    if head < left_shoulder * 0.95 and head < right_shoulder * 0.95:
+                        # 计算置信度
+                        symmetry = 1 - abs(left_shoulder - right_shoulder) / ((left_shoulder + right_shoulder) / 2)
+                        confidence = min(1.0, symmetry)
+                        hs_bottom.iloc[i] = confidence
+
+        return pd.DataFrame({
+            'Head_Shoulders_Top': hs_top,
+            'Head_Shoulders_Bottom': hs_bottom
+        })
+
+    def compute_double_top_bottom(self, df: pd.DataFrame,
+                                  lookback: int = 40) -> pd.DataFrame:
+        """
+        识别双顶/双底形态
+
+        双顶：两个相似的高点，中间有回调
+        双底：两个相似的低点，中间有反弹
+
+        Args:
+            df: 数据框（需包含 High, Low, Close）
+            lookback: 回看周期
+
+        Returns:
+            DataFrame with columns: Double_Top, Double_Bottom
+            （使用shift(1)防止数据泄漏）
+            值为0-1之间的概率，表示形态的置信度
+        """
+        high = df['High'].shift(1)
+        low = df['Low'].shift(1)
+        close = df['Close'].shift(1)
+
+        # 初始化结果
+        double_top = pd.Series(0.0, index=df.index)
+        double_bottom = pd.Series(0.0, index=df.index)
+
+        # 滚动窗口检测
+        for i in range(lookback, len(df)):
+            window_high = high.iloc[i-lookback:i]
+            window_low = low.iloc[i-lookback:i]
+            window_close = close.iloc[i-lookback:i]
+
+            # 寻找峰值（双顶）
+            peaks = []
+            for j in range(5, len(window_high) - 5):
+                if window_high.iloc[j] == window_high.iloc[j-5:j+6].max():
+                    peaks.append(j)
+
+            # 检查双顶
+            if len(peaks) >= 2:
+                peak_heights = [(p, window_high.iloc[p]) for p in peaks]
+                peak_heights.sort(key=lambda x: x[1], reverse=True)
+
+                # 取最高的两个峰值
+                top_2_peaks = peak_heights[:2]
+                top_2_peaks.sort(key=lambda x: x[0])
+
+                peak1_idx, peak1_price = top_2_peaks[0]
+                peak2_idx, peak2_price = top_2_peaks[1]
+
+                # 两个峰之间至少间隔5天
+                if peak2_idx - peak1_idx >= 5:
+                    # 检查价格相似性（误差在3%以内）
+                    price_diff = abs(peak1_price - peak2_price) / ((peak1_price + peak2_price) / 2)
+                    if price_diff < 0.03:
+                        # 检查中间有回调（至少3%）
+                        valley_idx = window_close.iloc[peak1_idx:peak2_idx].idxmin()
+                        valley_price = window_close.loc[valley_idx]
+                        avg_peak_price = (peak1_price + peak2_price) / 2
+
+                        if valley_price < avg_peak_price * 0.97:
+                            confidence = 1 - price_diff / 0.03
+                            double_top.iloc[i] = min(1.0, confidence)
+
+            # 寻找谷值（双底）
+            valleys = []
+            for j in range(5, len(window_low) - 5):
+                if window_low.iloc[j] == window_low.iloc[j-5:j+6].min():
+                    valleys.append(j)
+
+            # 检查双底
+            if len(valleys) >= 2:
+                valley_depths = [(v, window_low.iloc[v]) for v in valleys]
+                valley_depths.sort(key=lambda x: x[1])
+
+                # 取最低的两个谷值
+                bottom_2_valleys = valley_depths[:2]
+                bottom_2_valleys.sort(key=lambda x: x[0])
+
+                valley1_idx, valley1_price = bottom_2_valleys[0]
+                valley2_idx, valley2_price = bottom_2_valleys[1]
+
+                # 两个谷之间至少间隔5天
+                if valley2_idx - valley1_idx >= 5:
+                    # 检查价格相似性（误差在3%以内）
+                    price_diff = abs(valley1_price - valley2_price) / ((valley1_price + valley2_price) / 2)
+                    if price_diff < 0.03:
+                        # 检查中间有反弹（至少3%）
+                        peak_idx = window_close.iloc[valley1_idx:valley2_idx].idxmax()
+                        peak_price = window_close.loc[peak_idx]
+                        avg_valley_price = (valley1_price + valley2_price) / 2
+
+                        if peak_price > avg_valley_price * 1.03:
+                            confidence = 1 - price_diff / 0.03
+                            double_bottom.iloc[i] = min(1.0, confidence)
+
+        return pd.DataFrame({
+            'Double_Top': double_top,
+            'Double_Bottom': double_bottom
+        })
+
+    def compute_triangle_pattern(self, df: pd.DataFrame,
+                                  lookback: int = 30) -> pd.DataFrame:
+        """
+        识别三角形整理形态
+
+        对称三角形：高点下降，低点上升
+        上升三角形：高点水平，低点上升
+        下降三角形：高点下降，低点水平
+
+        Args:
+            df: 数据框（需包含 High, Low, Close）
+            lookback: 回看周期
+
+        Returns:
+            DataFrame with columns: Triangle_Sym, Triangle_Asc, Triangle_Desc
+            （使用shift(1)防止数据泄漏）
+            值为0-1之间的概率，表示形态的置信度
+        """
+        high = df['High'].shift(1)
+        low = df['Low'].shift(1)
+        close = df['Close'].shift(1)
+
+        # 初始化结果
+        triangle_sym = pd.Series(0.0, index=df.index)
+        triangle_asc = pd.Series(0.0, index=df.index)
+        triangle_desc = pd.Series(0.0, index=df.index)
+
+        # 滚动窗口检测
+        for i in range(lookback, len(df)):
+            window_high = high.iloc[i-lookback:i]
+            window_low = low.iloc[i-lookback:i]
+            window_close = close.iloc[i-lookback:i]
+
+            # 提取局部高点和低点
+            local_highs = []
+            local_lows = []
+
+            for j in range(5, len(window_high) - 5):
+                if window_high.iloc[j] == window_high.iloc[j-5:j+6].max():
+                    local_highs.append((j, window_high.iloc[j]))
+                if window_low.iloc[j] == window_low.iloc[j-5:j+6].min():
+                    local_lows.append((j, window_low.iloc[j]))
+
+            # 至少需要3个高点和3个低点
+            if len(local_highs) >= 3 and len(local_lows) >= 3:
+                # 计算高点趋势（线性回归斜率）
+                high_indices = [h[0] for h in local_highs[-5:]]
+                high_prices = [h[1] for h in local_highs[-5:]]
+
+                if len(high_indices) >= 3:
+                    high_slope = np.polyfit(high_indices, high_prices, 1)[0]
+
+                    # 计算低点趋势
+                    low_indices = [l[0] for l in local_lows[-5:]]
+                    low_prices = [l[1] for l in local_lows[-5:]]
+
+                    if len(low_indices) >= 3:
+                        low_slope = np.polyfit(low_indices, low_prices, 1)[0]
+
+                        # 标准化斜率
+                        avg_price = np.mean(window_close)
+                        high_slope_norm = high_slope / avg_price * 100
+                        low_slope_norm = low_slope / avg_price * 100
+
+                        # 对称三角形：高点下降（负斜率），低点上升（正斜率）
+                        if high_slope_norm < -0.01 and low_slope_norm > 0.01:
+                            confidence = min(1.0, abs(high_slope_norm) + low_slope_norm)
+                            triangle_sym.iloc[i] = confidence
+
+                        # 上升三角形：高点水平（斜率接近0），低点上升（正斜率）
+                        elif abs(high_slope_norm) < 0.01 and low_slope_norm > 0.02:
+                            confidence = min(1.0, low_slope_norm * 20)
+                            triangle_asc.iloc[i] = confidence
+
+                        # 下降三角形：高点下降（负斜率），低点水平（斜率接近0）
+                        elif high_slope_norm < -0.02 and abs(low_slope_norm) < 0.01:
+                            confidence = min(1.0, abs(high_slope_norm) * 20)
+                            triangle_desc.iloc[i] = confidence
+
+        return pd.DataFrame({
+            'Triangle_Sym': triangle_sym,
+            'Triangle_Asc': triangle_asc,
+            'Triangle_Desc': triangle_desc
+        })
+
+    # ==================== 支撑阻力位识别实现 ====================
+
+    def compute_support_resistance_levels(self, df: pd.DataFrame,
+                                          lookback: int = 60) -> pd.DataFrame:
+        """
+        识别历史高低点（支撑位和阻力位）
+
+        支撑位：历史低点聚集区域
+        阻力位：历史高点聚集区域
+
+        Args:
+            df: 数据框（需包含 High, Low, Close）
+            lookback: 回看周期
+
+        Returns:
+            DataFrame with columns: Support_Level, Resistance_Level,
+                                   Price_vs_Support, Price_vs_Resistance
+            （使用shift(1)防止数据泄漏）
+        """
+        high = df['High'].shift(1)
+        low = df['Low'].shift(1)
+        close = df['Close'].shift(1)
+
+        # 初始化结果
+        support_level = pd.Series(np.nan, index=df.index)
+        resistance_level = pd.Series(np.nan, index=df.index)
+        price_vs_support = pd.Series(np.nan, index=df.index)
+        price_vs_resistance = pd.Series(np.nan, index=df.index)
+
+        # 滚动窗口检测
+        for i in range(lookback, len(df)):
+            window_high = high.iloc[i-lookback:i]
+            window_low = low.iloc[i-lookback:i]
+            window_close = close.iloc[i-lookback:i]
+
+            # 找出所有局部低点
+            local_lows = []
+            for j in range(3, len(window_low) - 3):
+                if window_low.iloc[j] == window_low.iloc[j-3:j+4].min():
+                    local_lows.append(window_low.iloc[j])
+
+            # 找出所有局部高点
+            local_highs = []
+            for j in range(3, len(window_high) - 3):
+                if window_high.iloc[j] == window_high.iloc[j-3:j+4].max():
+                    local_highs.append(window_high.iloc[j])
+
+            # 计算支撑位（低点聚集区域）
+            if len(local_lows) >= 3:
+                # 对低点进行聚类
+                low_array = np.array(local_lows)
+                low_min, low_max = low_array.min(), low_array.max()
+                low_range = low_max - low_min
+
+                if low_range > 0:
+                    # 使用直方图找出聚集区
+                    hist, bins = np.histogram(low_array, bins=10)
+                    max_bin = np.argmax(hist)
+
+                    # 支撑位为聚集区的中心
+                    support_idx = i
+                    support_level.iloc[support_idx] = (bins[max_bin] + bins[max_bin + 1]) / 2
+
+                    # 计算当前价格相对于支撑位的距离
+                    current_price = close.iloc[i]
+                    distance = (current_price - support_level.iloc[support_idx]) / current_price
+                    price_vs_support.iloc[support_idx] = distance
+
+            # 计算阻力位（高点聚集区域）
+            if len(local_highs) >= 3:
+                # 对高点进行聚类
+                high_array = np.array(local_highs)
+                high_min, high_max = high_array.min(), high_array.max()
+                high_range = high_max - high_min
+
+                if high_range > 0:
+                    # 使用直方图找出聚集区
+                    hist, bins = np.histogram(high_array, bins=10)
+                    max_bin = np.argmax(hist)
+
+                    # 阻力位为聚集区的中心
+                    resistance_idx = i
+                    resistance_level.iloc[resistance_idx] = (bins[max_bin] + bins[max_bin + 1]) / 2
+
+                    # 计算当前价格相对于阻力位的距离
+                    current_price = close.iloc[i]
+                    distance = (current_price - resistance_level.iloc[resistance_idx]) / current_price
+                    price_vs_resistance.iloc[resistance_idx] = distance
+
+        return pd.DataFrame({
+            'Support_Level': support_level,
+            'Resistance_Level': resistance_level,
+            'Price_vs_Support': price_vs_support,
+            'Price_vs_Resistance': price_vs_resistance
+        })
+
+    def compute_congestion_zone(self, df: pd.DataFrame,
+                                lookback: int = 40) -> pd.DataFrame:
+        """
+        识别前期密集成交区
+
+        密集成交区：价格在一定范围内波动，成交量较大
+
+        Args:
+            df: 数据框（需包含 Close, High, Low, Volume）
+            lookback: 回看周期
+
+        Returns:
+            DataFrame with columns: Congestion_Zone, Price_in_Congestion
+            （使用shift(1)防止数据泄漏）
+            Congestion_Zone: 密集成交区的价格范围（高-低）
+            Price_in_Congestion: 当前价格是否在密集成交区内（0-1）
+        """
+        close = df['Close'].shift(1)
+        high = df['High'].shift(1)
+        low = df['Low'].shift(1)
+        volume = df.get('Volume', pd.Series([1] * len(df))).shift(1)
+
+        # 初始化结果
+        congestion_zone = pd.Series(np.nan, index=df.index)
+        price_in_congestion = pd.Series(0.0, index=df.index)
+
+        # 滚动窗口检测
+        for i in range(lookback, len(df)):
+            window_close = close.iloc[i-lookback:i]
+            window_high = high.iloc[i-lookback:i]
+            window_low = low.iloc[i-lookback:i]
+            window_volume = volume.iloc[i-lookback:i]
+
+            # 计算价格波动范围
+            price_range = window_high.max() - window_low.min()
+            avg_price = window_close.mean()
+
+            # 计算波动率
+            volatility = price_range / avg_price
+
+            # 如果波动率小于阈值（价格稳定），则可能存在密集成交区
+            if volatility < 0.05:  # 5%的波动率阈值
+                # 计算成交量加权平均价格
+                avg_volume = window_volume.mean()
+                volume_weight = window_volume / avg_volume
+
+                # 密集成交区的高点和低点
+                congestion_high = window_high.max()
+                congestion_low = window_low.min()
+
+                # 记录密集成交区
+                congestion_idx = i
+                congestion_zone.iloc[congestion_idx] = congestion_high - congestion_low
+
+                # 检查当前价格是否在密集成交区内
+                current_price = close.iloc[i]
+                if congestion_low <= current_price <= congestion_high:
+                    # 计算价格在密集成交区中的位置（0-1）
+                    position = (current_price - congestion_low) / (congestion_high - congestion_low)
+                    price_in_congestion.iloc[congestion_idx] = position
+
+        return pd.DataFrame({
+            'Congestion_Zone': congestion_zone,
+            'Price_in_Congestion': price_in_congestion
+        })
+
+    # ==================== 成交量分析实现 ====================
+
+    def compute_volume_distribution(self, df: pd.DataFrame,
+                                    lookback: int = 20) -> pd.DataFrame:
+        """
+        计算成交量分布
+
+        分析成交量在不同价格水平上的分布情况
+
+        Args:
+            df: 数据框（需包含 Close, Volume）
+            lookback: 回看周期
+
+        Returns:
+            DataFrame with columns: Volume_Distribution, Volume_Profile
+            （使用shift(1)防止数据泄漏）
+            Volume_Distribution: 成交量分布的均匀程度（0-1，越高越均匀）
+            Volume_Profile: 成交量趋势（正=增加，负=减少）
+        """
+        close = df['Close'].shift(1)
+        volume = df['Volume'].shift(1)
+
+        # 初始化结果
+        volume_distribution = pd.Series(0.0, index=df.index)
+        volume_profile = pd.Series(0.0, index=df.index)
+
+        # 滚动窗口计算
+        for i in range(lookback, len(df)):
+            window_close = close.iloc[i-lookback:i]
+            window_volume = volume.iloc[i-lookback:i]
+
+            # 计算成交量分布（使用价格分段）
+            price_min = window_close.min()
+            price_max = window_close.max()
+            price_range = price_max - price_min
+
+            if price_range > 0:
+                # 将价格分成5个区间
+                bins = np.linspace(price_min, price_max, 6)
+                volume_by_price = []
+
+                for j in range(5):
+                    # 找出每个价格区间的成交量
+                    in_bin = (window_close >= bins[j]) & (window_close < bins[j + 1])
+                    bin_volume = window_volume[in_bin].sum()
+                    volume_by_price.append(bin_volume)
+
+                # 计算分布的均匀程度（标准差越小越均匀）
+                if sum(volume_by_price) > 0:
+                    volume_array = np.array(volume_by_price)
+                    volume_std = volume_array.std()
+                    volume_mean = volume_array.mean()
+
+                    if volume_mean > 0:
+                        distribution_score = 1 - (volume_std / volume_mean)
+                        volume_distribution.iloc[i] = max(0.0, min(1.0, distribution_score))
+
+            # 计算成交量趋势（线性回归斜率）
+            if len(window_volume) >= 3:
+                x = np.arange(len(window_volume))
+                y = window_volume.values
+
+                # 线性回归
+                slope = np.polyfit(x, y, 1)[0]
+
+                # 标准化斜率
+                avg_volume = window_volume.mean()
+                if avg_volume > 0:
+                    profile_score = slope / avg_volume * lookback
+                    volume_profile.iloc[i] = profile_score
+
+        return pd.DataFrame({
+            'Volume_Distribution': volume_distribution,
+            'Volume_Profile': volume_profile
+        })
+
+    def compute_obv_divergence(self, df: pd.DataFrame,
+                               lookback: int = 14) -> pd.Series:
+        """
+        计算 OBV 背离
+
+        价格创新高但 OBV 未创新高 = 看跌背离（潜在顶部）
+        价格创新低但 OBV 未创新低 = 看涨背离（潜在底部）
+
+        Args:
+            df: 数据框（需包含 Close, OBV）
+            lookback: 回看周期
+
+        Returns:
+            OBV背离序列（使用shift(1)防止数据泄漏）
+            正值 = 看涨背离，负值 = 看跌背离，0 = 无背离
+        """
+        close = df['Close'].shift(1)
+        obv = df['OBV'].shift(1)
+
+        # 初始化结果
+        divergence = pd.Series(0.0, index=df.index)
+
+        # 滚动窗口检测
+        for i in range(lookback, len(df)):
+            window_close = close.iloc[i-lookback:i]
+            window_obv = obv.iloc[i-lookback:i]
+
+            # 寻找价格新高
+            price_highs = []
+            for j in range(3, len(window_close) - 3):
+                if window_close.iloc[j] == window_close.iloc[j-3:j+4].max():
+                    price_highs.append(j)
+
+            # 寻找价格新低
+            price_lows = []
+            for j in range(3, len(window_close) - 3):
+                if window_close.iloc[j] == window_close.iloc[j-3:j+4].min():
+                    price_lows.append(j)
+
+            # 检测看跌背离（价格新高但 OBV 未新高）
+            if len(price_highs) >= 2:
+                recent_high = price_highs[-1]
+                previous_high = price_highs[-2]
+
+                if (window_close.iloc[recent_high] > window_close.iloc[previous_high] and
+                    window_obv.iloc[recent_high] < window_obv.iloc[previous_high]):
+                    # 看跌背离，负值
+                    divergence.iloc[i] = -1.0
+
+            # 检测看涨背离（价格新低但 OBV 未新低）
+            if len(price_lows) >= 2:
+                recent_low = price_lows[-1]
+                previous_low = price_lows[-2]
+
+                if (window_close.iloc[recent_low] < window_close.iloc[previous_low] and
+                    window_obv.iloc[recent_low] > window_obv.iloc[previous_low]):
+                    # 看涨背离，正值
+                    divergence.iloc[i] = 1.0
+
+        return divergence
 
 
 # ==================== 辅助函数 ====================

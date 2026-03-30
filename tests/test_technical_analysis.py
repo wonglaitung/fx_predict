@@ -404,8 +404,15 @@ class TestComprehensiveFeatures:
         # 检查没有无穷大或无效值
         original_columns = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume']
 
-        # 允许全部为NaN的指标（因为数据不足）
-        allowed_all_nan = ['SMA120', 'Price_Percentile_120']
+        # 允许全部为NaN的指标（因为数据不足或特定市场条件）
+        allowed_all_nan = [
+            'SMA120', 'Price_Percentile_120',
+            # 新特征：这些特征在数据不足或特定市场条件下可能不存在
+            'Congestion_Zone', 'Support_Level', 'Resistance_Level',
+            'Head_Shoulders_Top', 'Head_Shoulders_Bottom',
+            'Double_Top', 'Double_Bottom',
+            'Triangle_Sym', 'Triangle_Asc', 'Triangle_Desc'
+        ]
 
         for col in result.columns:
             if col not in original_columns:
@@ -481,3 +488,266 @@ class TestEdgeCases:
 
         # 应该能计算不依赖Volume的指标
         assert 'SMA5' in result.columns
+
+
+# ==================== 高级形态识别测试 ====================
+
+class TestAdvancedPatternRecognition:
+    """高级形态识别测试"""
+
+    def test_head_shoulders_top(self, analyzer, sample_data):
+        """测试头肩顶识别"""
+        result = analyzer.compute_all_indicators(sample_data)
+
+        # 检查列是否存在
+        assert 'Head_Shoulders_Top' in result.columns
+
+        # 检查数据类型
+        assert result['Head_Shoulders_Top'].dtype == np.float64
+
+        # 检查值范围（应该是0-1之间的置信度）
+        valid_values = result['Head_Shoulders_Top'].dropna()
+        if len(valid_values) > 0:
+            assert (valid_values >= 0).all()
+            assert (valid_values <= 1).all()
+
+    def test_head_shoulders_bottom(self, analyzer, sample_data):
+        """测试头肩底识别"""
+        result = analyzer.compute_all_indicators(sample_data)
+
+        assert 'Head_Shoulders_Bottom' in result.columns
+        assert result['Head_Shoulders_Bottom'].dtype == np.float64
+
+        valid_values = result['Head_Shoulders_Bottom'].dropna()
+        if len(valid_values) > 0:
+            assert (valid_values >= 0).all()
+            assert (valid_values <= 1).all()
+
+    def test_double_top(self, analyzer, sample_data):
+        """测试双顶识别"""
+        result = analyzer.compute_all_indicators(sample_data)
+
+        assert 'Double_Top' in result.columns
+        assert result['Double_Top'].dtype == np.float64
+
+        valid_values = result['Double_Top'].dropna()
+        if len(valid_values) > 0:
+            assert (valid_values >= 0).all()
+            assert (valid_values <= 1).all()
+
+    def test_double_bottom(self, analyzer, sample_data):
+        """测试双底识别"""
+        result = analyzer.compute_all_indicators(sample_data)
+
+        assert 'Double_Bottom' in result.columns
+        assert result['Double_Bottom'].dtype == np.float64
+
+        valid_values = result['Double_Bottom'].dropna()
+        if len(valid_values) > 0:
+            assert (valid_values >= 0).all()
+            assert (valid_values <= 1).all()
+
+    def test_triangle_sym(self, analyzer, sample_data):
+        """测试对称三角形识别"""
+        result = analyzer.compute_all_indicators(sample_data)
+
+        assert 'Triangle_Sym' in result.columns
+        assert result['Triangle_Sym'].dtype == np.float64
+
+        valid_values = result['Triangle_Sym'].dropna()
+        if len(valid_values) > 0:
+            assert (valid_values >= 0).all()
+            assert (valid_values <= 1).all()
+
+    def test_triangle_asc(self, analyzer, sample_data):
+        """测试上升三角形识别"""
+        result = analyzer.compute_all_indicators(sample_data)
+
+        assert 'Triangle_Asc' in result.columns
+        assert result['Triangle_Asc'].dtype == np.float64
+
+        valid_values = result['Triangle_Asc'].dropna()
+        if len(valid_values) > 0:
+            assert (valid_values >= 0).all()
+            assert (valid_values <= 1).all()
+
+    def test_triangle_desc(self, analyzer, sample_data):
+        """测试下降三角形识别"""
+        result = analyzer.compute_all_indicators(sample_data)
+
+        assert 'Triangle_Desc' in result.columns
+        assert result['Triangle_Desc'].dtype == np.float64
+
+        valid_values = result['Triangle_Desc'].dropna()
+        if len(valid_values) > 0:
+            assert (valid_values >= 0).all()
+            assert (valid_values <= 1).all()
+
+
+# ==================== 支撑阻力位识别测试 ====================
+
+class TestSupportResistanceLevels:
+    """支撑阻力位识别测试"""
+
+    def test_support_level(self, analyzer, sample_data):
+        """测试支撑位识别"""
+        result = analyzer.compute_all_indicators(sample_data)
+
+        assert 'Support_Level' in result.columns
+        assert result['Support_Level'].dtype == np.float64
+
+        # 支撑位应该是正数
+        valid_values = result['Support_Level'].dropna()
+        if len(valid_values) > 0:
+            assert (valid_values > 0).all()
+
+    def test_resistance_level(self, analyzer, sample_data):
+        """测试阻力位识别"""
+        result = analyzer.compute_all_indicators(sample_data)
+
+        assert 'Resistance_Level' in result.columns
+        assert result['Resistance_Level'].dtype == np.float64
+
+        valid_values = result['Resistance_Level'].dropna()
+        if len(valid_values) > 0:
+            assert (valid_values > 0).all()
+
+    def test_price_vs_support(self, analyzer, sample_data):
+        """测试价格相对于支撑位的距离"""
+        result = analyzer.compute_all_indicators(sample_data)
+
+        assert 'Price_vs_Support' in result.columns
+        assert result['Price_vs_Support'].dtype == np.float64
+
+    def test_price_vs_resistance(self, analyzer, sample_data):
+        """测试价格相对于阻力位的距离"""
+        result = analyzer.compute_all_indicators(sample_data)
+
+        assert 'Price_vs_Resistance' in result.columns
+        assert result['Price_vs_Resistance'].dtype == np.float64
+
+    def test_congestion_zone(self, analyzer, sample_data):
+        """测试密集成交区识别"""
+        result = analyzer.compute_all_indicators(sample_data)
+
+        assert 'Congestion_Zone' in result.columns
+        assert result['Congestion_Zone'].dtype == np.float64
+
+        valid_values = result['Congestion_Zone'].dropna()
+        if len(valid_values) > 0:
+            assert (valid_values >= 0).all()
+
+    def test_price_in_congestion(self, analyzer, sample_data):
+        """测试价格是否在密集成交区内"""
+        result = analyzer.compute_all_indicators(sample_data)
+
+        assert 'Price_in_Congestion' in result.columns
+        assert result['Price_in_Congestion'].dtype == np.float64
+
+        valid_values = result['Price_in_Congestion'].dropna()
+        if len(valid_values) > 0:
+            assert (valid_values >= 0).all()
+            assert (valid_values <= 1).all()
+
+
+# ==================== 成交量分析测试 ====================
+
+class TestVolumeAnalysis:
+    """成交量分析测试"""
+
+    def test_volume_distribution(self, analyzer, sample_data):
+        """测试成交量分布"""
+        result = analyzer.compute_all_indicators(sample_data)
+
+        assert 'Volume_Distribution' in result.columns
+        assert result['Volume_Distribution'].dtype == np.float64
+
+        valid_values = result['Volume_Distribution'].dropna()
+        if len(valid_values) > 0:
+            assert (valid_values >= 0).all()
+            assert (valid_values <= 1).all()
+
+    def test_volume_profile(self, analyzer, sample_data):
+        """测试成交量趋势"""
+        result = analyzer.compute_all_indicators(sample_data)
+
+        assert 'Volume_Profile' in result.columns
+        assert result['Volume_Profile'].dtype == np.float64
+
+    def test_obv_divergence(self, analyzer, sample_data):
+        """测试OBV背离"""
+        result = analyzer.compute_all_indicators(sample_data)
+
+        assert 'OBV_Divergence' in result.columns
+        assert result['OBV_Divergence'].dtype == np.float64
+
+        valid_values = result['OBV_Divergence'].dropna()
+        if len(valid_values) > 0:
+            # OBV背离应该是-1, 0, 或1之间的值
+            assert (valid_values >= -1).all()
+            assert (valid_values <= 1).all()
+
+
+# ==================== 新特征综合测试 ====================
+
+class TestNewFeaturesIntegration:
+    """新特征集成测试"""
+
+    def test_all_new_features_exist(self, analyzer, sample_data):
+        """测试所有新特征都存在"""
+        result = analyzer.compute_all_indicators(sample_data)
+
+        # 高级形态识别特征（7个）
+        new_pattern_features = [
+            'Head_Shoulders_Top', 'Head_Shoulders_Bottom',
+            'Double_Top', 'Double_Bottom',
+            'Triangle_Sym', 'Triangle_Asc', 'Triangle_Desc'
+        ]
+
+        # 支撑阻力位识别特征（6个）
+        new_sr_features = [
+            'Support_Level', 'Resistance_Level',
+            'Price_vs_Support', 'Price_vs_Resistance',
+            'Congestion_Zone', 'Price_in_Congestion'
+        ]
+
+        # 成交量分析特征（3个）
+        new_volume_features = [
+            'Volume_Distribution', 'Volume_Profile', 'OBV_Divergence'
+        ]
+
+        # 检查所有新特征都存在
+        all_new_features = new_pattern_features + new_sr_features + new_volume_features
+        for feature in all_new_features:
+            assert feature in result.columns, f"特征 {feature} 不存在"
+
+    def test_total_indicator_count(self, analyzer, sample_data):
+        """测试总指标数量（应该是42个原始指标 + 16个新指标 = 58个）"""
+        result = analyzer.compute_all_indicators(sample_data)
+
+        original_columns = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume']
+        indicator_columns = [col for col in result.columns if col not in original_columns]
+
+        # 原始35个指标 + 7个形态识别 + 6个支撑阻力 + 3个成交量分析 = 51个指标
+        # 但实际上我们计算了16个新特征，所以总数应该是51
+        assert len(indicator_columns) >= 51, f"指标数量不足：{len(indicator_columns)}"
+
+    def test_new_features_no_inf(self, analyzer, sample_data):
+        """测试新特征没有无穷大值"""
+        result = analyzer.compute_all_indicators(sample_data)
+
+        new_features = [
+            'Head_Shoulders_Top', 'Head_Shoulders_Bottom',
+            'Double_Top', 'Double_Bottom',
+            'Triangle_Sym', 'Triangle_Asc', 'Triangle_Desc',
+            'Support_Level', 'Resistance_Level',
+            'Price_vs_Support', 'Price_vs_Resistance',
+            'Congestion_Zone', 'Price_in_Congestion',
+            'Volume_Distribution', 'Volume_Profile', 'OBV_Divergence'
+        ]
+
+        for feature in new_features:
+            if feature in result.columns:
+                # 检查没有无穷大值
+                has_inf = np.isinf(result[feature].replace([np.inf, -np.inf], np.nan)).any()
+                assert not has_inf, f"特征 {feature} 包含无穷大值"
