@@ -206,3 +206,136 @@ document.addEventListener('visibilitychange', () => {
     startCountdown();
   }
 });
+
+// File Upload Functionality
+const fileInput = document.getElementById('fileInput');
+const uploadBtn = document.getElementById('uploadBtn');
+const submitUploadBtn = document.getElementById('submitUploadBtn');
+const uploadStatus = document.getElementById('uploadStatus');
+const uploadProgress = document.getElementById('uploadProgress');
+const progressFill = document.getElementById('progressFill');
+const progressText = document.getElementById('progressText');
+let selectedFile = null;
+
+// Handle file selection button click
+uploadBtn.addEventListener('click', () => {
+  fileInput.click();
+});
+
+// Handle file input change
+fileInput.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (file) {
+    // Validate file type
+    if (!file.name.endsWith('.xlsx')) {
+      showUploadStatus('error', '只接受 .xlsx 格式的文件');
+      selectedFile = null;
+      submitUploadBtn.disabled = true;
+      uploadBtn.textContent = '选择文件';
+      return;
+    }
+    
+    // Validate file size (10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      showUploadStatus('error', '文件大小不能超过 10MB');
+      selectedFile = null;
+      submitUploadBtn.disabled = true;
+      uploadBtn.textContent = '选择文件';
+      return;
+    }
+    
+    selectedFile = file;
+    uploadBtn.textContent = `已选择: ${file.name}`;
+    submitUploadBtn.disabled = false;
+    hideUploadStatus();
+  }
+});
+
+// Handle upload button click
+submitUploadBtn.addEventListener('click', async () => {
+  if (!selectedFile) {
+    showUploadStatus('error', '请先选择文件');
+    return;
+  }
+  
+  const formData = new FormData();
+  formData.append('file', selectedFile);
+  
+  showUploadStatus('loading', '正在上传文件...');
+  showUploadProgress(0);
+  
+  try {
+    // Simulate progress
+    let progress = 0;
+    const progressInterval = setInterval(() => {
+      progress += 10;
+      if (progress < 90) {
+        showUploadProgress(progress);
+      }
+    }, 200);
+    
+    const response = await fetch('/api/v1/upload', {
+      method: 'POST',
+      body: formData
+    });
+    
+    clearInterval(progressInterval);
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error?.message || '上传失败');
+    }
+    
+    const result = await response.json();
+    showUploadProgress(100);
+    
+    // Success message
+    showUploadStatus('success', `文件上传成功: ${result.file.filename} (${(result.file.size / 1024).toFixed(2)} KB)`);
+    
+    // Reset file selection
+    selectedFile = null;
+    fileInput.value = '';
+    uploadBtn.textContent = '选择文件';
+    submitUploadBtn.disabled = true;
+    
+    // Hide progress after 2 seconds
+    setTimeout(() => {
+      hideUploadProgress();
+    }, 2000);
+    
+    // Refresh data after successful upload
+    setTimeout(async () => {
+      await refreshData();
+    }, 1000);
+    
+  } catch (error) {
+    console.error('Upload error:', error);
+    showUploadStatus('error', `上传失败: ${error.message}`);
+    hideUploadProgress();
+  }
+});
+
+// Show upload status message
+function showUploadStatus(type, message) {
+  uploadStatus.textContent = message;
+  uploadStatus.className = `upload-status show ${type}`;
+}
+
+// Hide upload status message
+function hideUploadStatus() {
+  uploadStatus.className = 'upload-status';
+}
+
+// Show upload progress
+function showUploadProgress(percent) {
+  uploadProgress.classList.add('show');
+  progressFill.style.width = `${percent}%`;
+  progressText.textContent = `${percent}%`;
+}
+
+// Hide upload progress
+function hideUploadProgress() {
+  uploadProgress.classList.remove('show');
+  progressFill.style.width = '0%';
+  progressText.textContent = '0%';
+}

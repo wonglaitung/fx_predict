@@ -92,6 +92,24 @@
         <!-- Warnings will be populated by JavaScript -->
       </div>
     </section>
+
+    <!-- File Upload Section -->
+    <section class="upload-section">
+      <h2 class="section-title">数据文件上传</h2>
+      <p class="section-description">上传新的 Excel 数据文件以更新预测数据（仅支持 .xlsx 格式，最大 10MB）</p>
+      <div class="upload-container">
+        <input type="file" id="fileInput" accept=".xlsx" class="upload-input" />
+        <button id="uploadBtn" class="upload-btn">选择文件</button>
+        <button id="submitUploadBtn" class="submit-upload-btn" disabled>上传</button>
+      </div>
+      <div id="uploadStatus" class="upload-status"></div>
+      <div id="uploadProgress" class="upload-progress">
+        <div class="progress-bar">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <span class="progress-text" id="progressText">0%</span>
+      </div>
+    </section>
   </main>
 
   <!-- Analysis Sidebar -->
