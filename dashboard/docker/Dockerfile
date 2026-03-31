@@ -34,6 +34,7 @@ WORKDIR /app
 # 复制项目文件
 COPY requirements.txt ./
 COPY run_full_pipeline.sh ./
+COPY show_current_files.sh ./
 COPY comprehensive_analysis.py ./
 COPY config.py ./
 COPY data_services/ ./data_services/
@@ -41,7 +42,10 @@ COPY ml_services/ ./ml_services/
 COPY llm_services/ ./llm_services/
 
 # 安装 Python 依赖
-    RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+# 设置脚本执行权限
+RUN chmod +x run_full_pipeline.sh show_current_files.sh
 # 从第一阶段复制 Dashboard
 COPY --from=dashboard-builder /app/dashboard ./dashboard
 
