@@ -157,6 +157,10 @@ class DataLoader {
       // Get the latest file
       const latestFile = files.sort().pop();
       const filePath = path.join(this.dataDir, latestFile);
+      
+      // Debug log
+      logInfo(`Loading ${pair} from file: ${latestFile}`);
+      
       const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
       
       // Standardize the format to match loadAllPairs

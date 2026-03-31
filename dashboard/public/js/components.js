@@ -97,7 +97,10 @@ function renderOverviewCards(pairs) {
         </div>
       </div>
       <div class="card-summary">${truncatedSummary}</div>
-      <div class="card-hint">查看详情 →</div>
+      <div class="card-footer">
+        <div class="card-date">${pair.last_update}</div>
+        <div class="card-hint">查看详情 →</div>
+      </div>
     `;
     
     // Add click event to open sidebar

@@ -35,6 +35,7 @@ WORKDIR /app
 COPY requirements.txt ./
 COPY run_full_pipeline.sh ./
 COPY show_current_files.sh ./
+COPY fetch_fx_data.py ./
 COPY comprehensive_analysis.py ./
 COPY config.py ./
 COPY data_services/ ./data_services/

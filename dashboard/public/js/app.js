@@ -45,11 +45,10 @@ async function refreshData() {
       renderIndicatorCharts(selectedPair);
     }
     
-    // Update last update time (use data date, not current time)
-    if (pairsData.pairs && pairsData.pairs.length > 0) {
-      const dataDate = pairsData.pairs[0].last_update;
-      document.getElementById('lastUpdate').textContent = dataDate;
-    }
+    // Update last update time to today's date
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    document.getElementById('lastUpdate').textContent = todayStr;
     
     // Reset countdown timer
     remainingSeconds = 5 * 60;

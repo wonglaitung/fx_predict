@@ -151,6 +151,21 @@ body {
   margin-bottom: 0.5rem;
 }
 
+.card-date {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  background-color: var(--color-info-bg);
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+}
+
+.card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 0.75rem;
+}
+
 .card-prediction {
   font-size: 1rem;
   display: flex;
