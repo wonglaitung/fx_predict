@@ -1815,6 +1815,75 @@
       - 提交配置管理优化代码
       - 推送到远程仓库
 
+- 日期：2026-04-01（第二十一次更新 - Markdown 转 Word 功能和 Dashboard 配置修复）
+- 更新者：iFlow CLI
+- 更新内容：
+  - **md-to-word Skill 实现**：
+    - 使用项目已有的 md-to-word skill 将 README.md 转换为 Word 文档
+    - 转换器支持完整的格式保留（标题、段落、列表、代码块、引用、水平线、表格）
+    - 输出文件：README.docx（保存在项目根目录）
+    - 表格处理：表头自动加粗，应用表格网格样式
+    - 转换耗时：快速完成（几百毫秒）
+    - 适用场景：格式转换、批量处理、报告生成、内容归档、客户交付
+    - 当前限制：
+      - 不支持嵌套列表
+      - 表格对齐格式会被统一处理
+      - 行内格式会保留 Markdown 标记，不会转换为 Word 格式
+    - 技术依赖：python-docx >= 1.1.0
+    - Git 状态：README.docx 已生成（建议不提交到 Git）
+    - 文档位置：.iflow/skills/md-to-word/SKILL.md
+
+  - **Dashboard 配置更新路径修复**：
+    - 问题：server.js 在 Docker 环境中无法正确更新配置文件
+    - 原因分析：
+      - 最初尝试更新 config.py（但实际上 DATA_CONFIG 没有 data_file 字段）
+      - 项目统一使用 .env 环境变量管理 DATA_FILE
+      - server.js 在 dashboard/ 目录下，.env 在上级目录（../.env）
+    - 解决方案：
+      - 修改文件上传功能，改为更新 .env 文件中的 DATA_FILE
+      - 路径修正：path.resolve('../.env') 而不是 path.resolve('.env')
+      - 正则表达式修正：/^DATA_FILE=.*/m 而不是 /'data_file':\s*'[^']*'/
+    - 验证结果：
+      - 本地环境：.env 文件存在且可读写，路径解析正确
+      - Docker 环境：.env 是读写挂载（不是只读），可以正常写入
+      - 容器内路径：/app/.env，相对路径 ../.env 解析正确
+    - 涉及文件：dashboard/server.js
+    - 功能影响：文件上传接口（POST /api/v1/upload）
+    - 测试验证：路径解析测试通过，.env 文件存在验证通过
+    - 配置管理一致性：确保与项目的配置管理规范一致（统一使用 .env）
+
+  - **配置管理的验证流程**：
+    - 检查配置文件是否存在：ls -la .env
+    - 检查配置文件内容：读取 .env 确认 DATA_FILE 字段
+    - 验证路径解析：从 dashboard/ 目录使用 node -e 测试路径解析
+    - 确认挂载方式：检查 docker-deploy.sh 中的 volume 配置
+    - 测试文件读写：验证 .env 文件是否可读写
+
+  - **Skill 系统的应用**：
+    - 使用现有的 md-to-word skill 完成任务
+    - Skill 位于：.iflow/skills/md-to-word/
+    - 脚本位置：scripts/md_to_word.py
+    - 使用方式：python3 .iflow/skills/md-to-word/scripts/md_to_word.py README.md
+    - 优势：避免重复实现已有功能，提高开发效率
+    - 文档完整：SKILL.md 包含详细的使用说明和最佳实践
+
+  - **经验总结**：
+    1. **Skill 系统的价值**：项目中的 Skill 可以快速完成任务，避免重复开发
+    2. **路径解析的重要性**：在子目录中运行代码时，要特别注意相对路径的解析
+    3. **配置管理的一致性**：修改功能时要检查是否与项目的配置管理规范一致
+    4. **Docker 挂载方式的确认**：修改 Docker 相关代码时要检查 volume 的挂载方式（只读 vs 读写）
+    5. **验证流程的必要性**：涉及文件系统的修改需要全面的验证（存在性、可读写性、路径正确性）
+
+  - **Git 状态**：
+    - dashboard/server.js 已修改
+    - README.docx 已生成（未跟踪文件）
+    - 未提交更改：建议在验证功能正常后提交
+
+  - **下一步工作**：
+    - 等待用户测试文件上传功能
+    - 根据需要优化 Markdown 转 Word 的格式
+    - 考虑将 md-to-word skill 集成到 Dashboard
+
 - 日期：2026-03-31（第二十次更新 - Dashboard UI 优化和 Docker 镜像增强）
 - 更新者：iFlow CLI
 - 更新内容：

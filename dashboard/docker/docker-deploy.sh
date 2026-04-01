@@ -147,7 +147,7 @@ run_container() {
         -e PORT=3000 \
         -e PYTHONUNBUFFERED=1 \
         -e TZ="$TIMEZONE" \
-        -v "$PROJECT_DIR/.env:/app/.env:ro" \
+        -v "$PROJECT_DIR/.env:/app/.env" \
         -v "$PROJECT_DIR/config.py:/app/config.py" \
         -v "$PROJECT_DIR/data/raw:/app/data/raw" \
         -v "$PROJECT_DIR/data/models:/app/data/models" \

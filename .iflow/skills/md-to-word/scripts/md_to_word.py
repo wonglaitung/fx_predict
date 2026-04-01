@@ -4,9 +4,9 @@ MD 转 WORD 转换器
 将 Markdown 文件转换为 Word 文档（.docx），保留格式
 
 用法：
-    python3 md_to_word.py input.md
-    python3 md_to_word.py input.md --output output.docx
-    python3 md_to_word.py *.md  # 批量转换
+    python md_to_word.py input.md
+    python md_to_word.py input.md --output output.docx
+    python md_to_word.py *.md  # 批量转换
 """
 
 import argparse

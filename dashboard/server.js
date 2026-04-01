@@ -604,9 +604,9 @@ app.post('/api/v1/upload', upload.single('file'), (req, res) => {
     const { filename, path: filePath, size } = req.file;
     logInfo(`File uploaded: ${filename}, size: ${size} bytes, path: ${filePath}`);
 
-    // Update .env file with new data file path
+    // Update .env file with new data file path (works in both Docker and local)
     try {
-      const envPath = path.resolve('.env');
+      const envPath = path.resolve('../.env');
       let envContent = fs.readFileSync(envPath, 'utf8');
       
       // Replace or add DATA_FILE configuration
