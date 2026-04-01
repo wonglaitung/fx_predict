@@ -10,6 +10,7 @@ MD 转 WORD 转换器
 """
 
 import argparse
+import logging
 import os
 import re
 import sys
@@ -178,6 +179,47 @@ def process_inline_formatting(text: str) -> str:
     return text
 
 
+def setup_logging() -> logging.Logger:
+    """
+    设置日志记录器，日志文件保存在 Python 脚本所在目录
+
+    Returns:
+        配置好的日志记录器
+    """
+    # 获取脚本所在目录
+    script_dir = Path(__file__).parent
+    log_path = script_dir / 'md_to_word.log'
+
+    # 创建日志记录器
+    logger = logging.getLogger('md_to_word')
+    logger.setLevel(logging.DEBUG)
+
+    # 清除已有的处理器
+    logger.handlers.clear()
+
+    # 文件处理器
+    file_handler = logging.FileHandler(log_path, encoding='utf-8')
+    file_handler.setLevel(logging.DEBUG)
+    file_formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    file_handler.setFormatter(file_formatter)
+
+    # 控制台处理器
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    console_formatter = logging.Formatter('%(levelname)s: %(message)s')
+    console_handler.setFormatter(console_formatter)
+
+    # 添加处理器
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+
+    logger.debug(f'日志文件: {log_path}')
+    return logger
+
+
 def convert_to_word(md_path: str, output_path: Optional[str] = None) -> str:
     """
     将 Markdown 文件转换为 Word 文档
@@ -203,17 +245,38 @@ def convert_to_word(md_path: str, output_path: Optional[str] = None) -> str:
     if output_path is None:
         output_path = md_file.with_suffix('.docx')
 
+    # 设置日志
+    logger = setup_logging()
+    logger.info(f'开始转换: {md_path}')
+    logger.debug(f'输出路径: {output_path}')
+
     # 读取 Markdown 文件
+    logger.debug(f'读取文件: {md_path}')
     with open(md_path, 'r', encoding='utf-8') as f:
         md_content = f.read()
+    logger.debug(f'文件大小: {len(md_content)} 字符')
 
     # 解析 Markdown
+    logger.debug('解析 Markdown 内容')
     elements = parse_markdown_to_elements(md_content)
+    logger.debug(f'解析完成，共 {len(elements)} 个元素')
 
     # 创建 Word 文档
+    logger.debug('创建 Word 文档')
     doc = Document()
 
     # 添加元素到 Word 文档
+    element_counts = {
+        'heading': 0,
+        'paragraph': 0,
+        'unordered_list': 0,
+        'ordered_list': 0,
+        'code': 0,
+        'quote': 0,
+        'table': 0,
+        'hr': 0
+    }
+
     for element in elements:
         if element['type'] == 'heading':
             # 标题
@@ -221,23 +284,27 @@ def convert_to_word(md_path: str, output_path: Optional[str] = None) -> str:
             heading = doc.add_heading(element['text'], level=level)
             heading.style.font.size = Pt(16 - level * 2)
             heading.style.font.bold = True
+            element_counts['heading'] += 1
 
         elif element['type'] == 'paragraph':
             # 普通段落
             p = doc.add_paragraph(element['text'])
             p.style.font.size = Pt(11)
+            element_counts['paragraph'] += 1
 
         elif element['type'] == 'unordered_list':
             # 无序列表
             for item in element['items']:
                 p = doc.add_paragraph(item, style='List Bullet')
                 p.style.font.size = Pt(11)
+            element_counts['unordered_list'] += 1
 
         elif element['type'] == 'ordered_list':
             # 有序列表
             for item in element['items']:
                 p = doc.add_paragraph(item, style='List Number')
                 p.style.font.size = Pt(11)
+            element_counts['ordered_list'] += 1
 
         elif element['type'] == 'code':
             # 代码块
@@ -247,6 +314,7 @@ def convert_to_word(md_path: str, output_path: Optional[str] = None) -> str:
             run.font.size = Pt(9)
             p.paragraph_format.left_indent = Pt(20)
             p.paragraph_format.space_after = Pt(6)
+            element_counts['code'] += 1
 
         elif element['type'] == 'quote':
             # 引用
@@ -254,6 +322,7 @@ def convert_to_word(md_path: str, output_path: Optional[str] = None) -> str:
             p.style.font.size = Pt(11)
             p.style.font.italic = True
             p.paragraph_format.left_indent = Pt(20)
+            element_counts['quote'] += 1
 
         elif element['type'] == 'table':
             # 表格
@@ -280,18 +349,54 @@ def convert_to_word(md_path: str, output_path: Optional[str] = None) -> str:
                                 run.font.bold = True
                     else:
                         table.rows[row_idx].cells[col_idx].text = cell_text
+            element_counts['table'] += 1
 
         elif element['type'] == 'hr':
             # 水平线
             p = doc.add_paragraph('_' * 80)
             p.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
             p.paragraph_format.space_after = Pt(12)
+            element_counts['hr'] += 1
+
+    logger.debug(f'元素统计: {element_counts}')
 
     # 保存 Word 文档
+    logger.debug(f'保存 Word 文档: {output_path}')
     doc.save(output_path)
-    print(f"✓ 已转换: {md_path} -> {output_path}")
+    logger.info(f'✓ 已转换: {md_path} -> {output_path}')
+    logger.debug('转换完成')
 
     return str(output_path)
+
+
+def convert_to_word_with_error_handling(md_path: str, output_path: Optional[str] = None) -> str:
+    """
+    带异常处理的转换函数
+
+    Args:
+        md_path: Markdown 文件路径
+        output_path: 输出 Word 文件路径
+
+    Returns:
+        生成的 Word 文件路径
+
+    Raises:
+        Exception: 转换失败时抛出异常
+    """
+    try:
+        return convert_to_word(md_path, output_path)
+    except FileNotFoundError as e:
+        logger = logging.getLogger('md_to_word')
+        logger.error(f'文件未找到: {md_path} - {e}')
+        raise
+    except PermissionError as e:
+        logger = logging.getLogger('md_to_word')
+        logger.error(f'权限错误: {md_path} - {e}')
+        raise
+    except Exception as e:
+        logger = logging.getLogger('md_to_word')
+        logger.error(f'转换失败: {md_path} - {type(e).__name__}: {e}', exc_info=True)
+        raise
 
 
 def main():
@@ -327,6 +432,19 @@ def main():
 
     args = parser.parse_args()
 
+    # 设置全局日志
+    main_logger = logging.getLogger('md_to_word_main')
+    main_logger.setLevel(logging.INFO)
+    main_logger.handlers.clear()
+
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    console_formatter = logging.Formatter('%(levelname)s: %(message)s')
+    console_handler.setFormatter(console_formatter)
+    main_logger.addHandler(console_handler)
+
+    main_logger.info('MD 转 WORD 转换器启动')
+
     # 展开通配符
     input_files = []
     for pattern in args.input_files:
@@ -342,10 +460,10 @@ def main():
     valid_files = [f for f in input_files if f.exists() and f.suffix.lower() == '.md']
 
     if not valid_files:
-        print("错误：没有找到有效的 Markdown 文件")
+        main_logger.error("错误：没有找到有效的 Markdown 文件")
         sys.exit(1)
 
-    print(f"找到 {len(valid_files)} 个 Markdown 文件")
+    main_logger.info(f"找到 {len(valid_files)} 个 Markdown 文件")
 
     # 转换文件
     success_count = 0
@@ -355,9 +473,9 @@ def main():
             convert_to_word(str(md_file), output_path)
             success_count += 1
         except Exception as e:
-            print(f"✗ 转换失败: {md_file} - {e}")
+            main_logger.error(f"✗ 转换失败: {md_file} - {e}")
 
-    print(f"\n完成！成功转换 {success_count}/{len(valid_files)} 个文件")
+    main_logger.info(f"完成！成功转换 {success_count}/{len(valid_files)} 个文件")
 
 
 if __name__ == '__main__':
