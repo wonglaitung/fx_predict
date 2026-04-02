@@ -20,7 +20,7 @@ crontab /tmp/crontab
 
 # 启动 cron 守护进程
 echo "启动 cron 守护进程..."
-crond -f -l 2 >> /app/logs/cron.log 2>&1 &
+cron >> /app/logs/cron.log 2>&1 &
 CRON_PID=$!
 
 # 等待 cron 启动
