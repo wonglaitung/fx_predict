@@ -20,8 +20,7 @@ crontab /tmp/crontab
 
 # 启动 cron 守护进程
 echo "启动 cron 守护进程..."
-cron >> /app/logs/cron.log 2>&1 &
-CRON_PID=$!
+cron
 
 # 等待 cron 启动
 sleep 2
@@ -29,6 +28,13 @@ sleep 2
 # 验证 cron 任务是否配置成功
 echo "验证 cron 配置..."
 crontab -l
+
+# 检查 cron 是否正在运行
+if pgrep cron > /dev/null; then
+    echo "✓ cron 守护进程运行正常"
+else
+    echo "✗ cron 守护进程启动失败"
+fi
 
 echo ""
 echo "========================================"

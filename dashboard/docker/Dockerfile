@@ -24,6 +24,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     g++ \
     make \
     cron \
+    procps \
     && curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
@@ -43,7 +44,8 @@ COPY ml_services/ ./ml_services/
 COPY llm_services/ ./llm_services/
 
 # 安装 Python 依赖
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip3 install --no-cache-dir -r requirements.txt && \
+    python3 -c "import pandas; import numpy; import catboost; print('依赖验证成功')"
 
 # 设置脚本执行权限
 RUN chmod +x run_full_pipeline.sh show_current_files.sh
