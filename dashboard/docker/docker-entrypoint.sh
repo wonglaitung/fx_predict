@@ -14,8 +14,17 @@ echo "========================================"
 mkdir -p /app/logs
 
 # 设置 cron 任务（每小时执行一次）
+# 重要：添加环境变量，确保 cron 能找到 Python 和已安装的包
 echo "配置 cron 定时任务..."
-echo "0 * * * * cd /app && bash run_full_pipeline.sh >> /app/logs/pipeline.log 2>&1" > /tmp/crontab
+cat > /tmp/crontab << 'EOF'
+# 设置环境变量（cron 默认 PATH 很有限，需要手动设置）
+PATH=/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin
+PYTHONPATH=/usr/local/lib/python3.12/site-packages
+LANG=C.UTF-8
+
+# 定时任务
+0 * * * * cd /app && bash run_full_pipeline.sh >> /app/logs/pipeline.log 2>&1
+EOF
 crontab /tmp/crontab
 
 # 启动 cron 守护进程
